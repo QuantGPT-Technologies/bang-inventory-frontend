@@ -50,9 +50,9 @@ export default function ConsumablesPage() {
     { key: 'name', header: 'Name', render: (c: Consumable) => <span className="font-medium">{c.name}</span> },
     { key: 'code', header: 'Code', render: (c: Consumable) => c.code ? <span className="font-mono">{c.code}</span> : '—' },
     {
-      key: 'stock_qty',
+      key: 'current_stock',
       header: 'Stock',
-      render: (c: Consumable) => <span className={`font-mono ${c.stock_qty <= 0 ? 'text-red-600' : ''}`}>{formatQty(c.stock_qty, c.unit)}</span>,
+      render: (c: Consumable) => <span className={`font-mono ${c.current_stock <= 0 ? 'text-red-600' : ''}`}>{formatQty(c.current_stock, c.unit)}</span>,
     },
     { key: 'created_at', header: 'Added', render: (c: Consumable) => formatDate(c.created_at) },
     ...(canStock
@@ -62,7 +62,7 @@ export default function ConsumablesPage() {
             header: '',
             render: (c: Consumable) => (
               <button
-                onClick={(e) => { e.stopPropagation(); setShowAdjust({ id: c.id, name: c.name, stock: c.stock_qty, unit: c.unit }); }}
+                onClick={(e) => { e.stopPropagation(); setShowAdjust({ id: c.id, name: c.name, stock: c.current_stock, unit: c.unit }); }}
                 className="p-1 text-[var(--ink-muted)] hover:text-[var(--accent)]"
                 title="Adjust stock"
               >
@@ -143,7 +143,7 @@ function CreateConsumableModal({ onClose, onCreated }: { onClose: () => void; on
 
     setLoading(true);
     try {
-      await consumablesApi.create({ ...result.data, stock_qty: 0 });
+      await consumablesApi.create(result.data);
       toast.success('Consumable created');
       onCreated();
     } catch (err) {

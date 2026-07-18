@@ -15,7 +15,7 @@ import Textarea from '@/components/ui/Textarea';
 import { toast } from '@/components/ui/Toast';
 import { skusApi, customersApi, rawMaterialsApi } from '@/lib/api';
 import { SKU, Customer, RawMaterial, PaginatedResponse } from '@/lib/types';
-import { formatDate, parseApiError } from '@/lib/utils';
+import { formatDate, formatQty, parseApiError } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import { skuSchema, validate, toNumber, type FieldErrors } from '@/lib/validation';
@@ -60,6 +60,11 @@ export default function SKUsPage() {
     { key: 'name', header: 'Name', render: (row: SKU) => <span className="font-medium">{row.name}</span> },
     { key: 'customer_name', header: 'Customer', render: (row: SKU) => row.customer_name || '—' },
     { key: 'unit', header: 'Unit' },
+    {
+      key: 'current_stock',
+      header: 'Stock',
+      render: (row: SKU) => <span className="font-mono">{formatQty(row.current_stock, row.unit)}</span>,
+    },
     {
       key: 'is_active',
       header: 'Status',

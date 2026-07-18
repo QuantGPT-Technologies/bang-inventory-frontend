@@ -13,11 +13,11 @@ import Select from '@/components/ui/Select';
 import Textarea from '@/components/ui/Textarea';
 import { toast } from '@/components/ui/Toast';
 import { lotsApi, consumablesApi } from '@/lib/api';
-import { Lot, StepName, Consumable, StepVariance } from '@/lib/types';
+import { Lot, LotStep, StepName, Consumable } from '@/lib/types';
 import { formatDateTime, formatQty, STEP_ORDER, STEP_LABELS, STEP_SCRAP_TYPES, SKIPPABLE_STEPS, parseApiError } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
-import { startStepSchema, completeStepSchema, overrideStepSchema, scrapSchema, consumableUsageSchema, validate, toNumber, type FieldErrors } from '@/lib/validation';
+import { startStepSchema, completeStepSchema, overrideStepSchema, scrapSchema, consumableUsageSchema, validate, toNumber, INTEGER_UNITS, type FieldErrors } from '@/lib/validation';
 import { useAsyncQuery } from '@/lib/useAsync';
 import { Play, CheckCircle, SkipForward, AlertTriangle, Package, Pencil, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -239,11 +239,11 @@ export default function LotDetailPage() {
                         <Pencil size={13} />
                       </button>
                     )}
-                    {status === 'completed' && canAnalytics && (
+                    {status !== 'pending' && canAnalytics && (
                       <button
                         onClick={() => setActionModal({ type: 'analytics', step: stepName })}
                         className="text-[var(--ink-muted)] hover:text-[var(--ink)] p-1 rounded"
-                        title="View step analytics"
+                        title="View step detail"
                       >
                         <BarChart3 size={13} />
                       </button>
@@ -268,6 +268,15 @@ export default function LotDetailPage() {
       )}
     </AppShell>
   );
+}
+
+/** Discrete-count units (e.g. "pcs") only accept whole numbers; everything else allows 3 decimals. */
+function qtyStepAttr(unit?: string): string {
+  return unit && INTEGER_UNITS.has(unit) ? '1' : '0.001';
+}
+
+function qtyPlaceholder(unit?: string): string {
+  return unit && INTEGER_UNITS.has(unit) ? '0' : '0.000';
 }
 
 function DL({ label, children }: { label: string; children: React.ReactNode }) {
@@ -297,13 +306,15 @@ function StepActionModal({
   const currentStep = lot.steps?.find((s) => s.step_name === stepName);
 
   const [startMachineName, setStartMachineName] = useState('');
-  const [inputQty, setInputQty] = useState('');
-  const [outputQty, setOutputQty] = useState('');
-  const [machineName, setMachineName] = useState('');
+  const [inputQty, setInputQty] = useState(String(currentStep?.expected_input_qty ?? ''));
+  const [outputQty, setOutputQty] = useState(String(currentStep?.expected_output_qty ?? ''));
+  const [machineName, setMachineName] = useState(currentStep?.machine_name ?? '');
   const [notes, setNotes] = useState('');
   const [overrideInputQty, setOverrideInputQty] = useState(String(currentStep?.actual_input_qty ?? ''));
   const [overrideOutputQty, setOverrideOutputQty] = useState(String(currentStep?.actual_output_qty ?? ''));
-  const [overrideNotes, setOverrideNotes] = useState(currentStep?.notes ?? '');
+  // Intentionally starts blank (not prefilled from currentStep.notes) — it's the mandatory
+  // reason for *this* override, not a continuation of the step's original completion notes.
+  const [overrideNotes, setOverrideNotes] = useState('');
   const [scrapType, setScrapType] = useState('');
   const [scrapQty, setScrapQty] = useState('');
   const [scrapUnit, setScrapUnit] = useState('kg');
@@ -312,7 +323,7 @@ function StepActionModal({
   const [consumableUnit, setConsumableUnit] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
-  const [analytics, setAnalytics] = useState<StepVariance | null>(null);
+  const [analytics, setAnalytics] = useState<LotStep | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
 
@@ -325,7 +336,7 @@ function StepActionModal({
     complete: `Complete ${STEP_LABELS[stepName]}`,
     skip: `Skip ${STEP_LABELS[stepName]}`,
     override: `Override — ${STEP_LABELS[stepName]}`,
-    analytics: `Analytics — ${STEP_LABELS[stepName]}`,
+    analytics: `Step Detail — ${STEP_LABELS[stepName]}`,
     scrap: `Record Scrap — ${STEP_LABELS[stepName]}`,
     consumable: `Record Consumable Usage`,
   };
@@ -377,7 +388,7 @@ function StepActionModal({
             machine_name: machineName,
             notes,
           };
-          const result = validate(completeStepSchema, payload);
+          const result = validate(completeStepSchema(currentStep?.input_unit, currentStep?.output_unit), payload);
           if (!result.success) {
             setErrors(result.errors);
             toast.error(Object.values(result.errors)[0] || 'Please correct the highlighted fields.');
@@ -412,7 +423,7 @@ function StepActionModal({
             actual_output_qty: overrideOutputQty !== '' ? toNumber(overrideOutputQty) : undefined,
             notes: overrideNotes,
           };
-          const result = validate(overrideStepSchema, payload);
+          const result = validate(overrideStepSchema(currentStep?.input_unit, currentStep?.output_unit), payload);
           if (!result.success) {
             setErrors(result.errors);
             toast.error(Object.values(result.errors)[0] || 'Please correct the highlighted fields.');
@@ -431,7 +442,7 @@ function StepActionModal({
           break;
         }
         case 'scrap': {
-          const schema = scrapSchema(stepName);
+          const schema = scrapSchema(stepName, scrapUnit);
           const payload = { scrap_type: scrapType, quantity: toNumber(scrapQty), unit: scrapUnit, notes };
           const result = validate(schema, payload);
           if (!result.success) {
@@ -463,8 +474,8 @@ function StepActionModal({
             toast.error(Object.values(result.errors)[0] || 'Please correct the highlighted fields.');
             return;
           }
-          if (selectedConsumable && result.data.quantity > selectedConsumable.stock_qty) {
-            setErrors({ quantity: `Only ${formatQty(selectedConsumable.stock_qty, selectedConsumable.unit)} in stock` });
+          if (selectedConsumable && result.data.quantity > selectedConsumable.current_stock) {
+            setErrors({ quantity: `Only ${formatQty(selectedConsumable.current_stock, selectedConsumable.unit)} in stock` });
             toast.error('Requested quantity exceeds available stock.');
             return;
           }
@@ -487,7 +498,7 @@ function StepActionModal({
   };
 
   return (
-    <Modal open onClose={onClose} title={titles[actionType] || 'Confirm'} size="sm"
+    <Modal open onClose={onClose} title={titles[actionType] || 'Confirm'} size={actionType === 'analytics' ? 'xl' : 'sm'}
       footer={
         actionType === 'analytics' ? (
           <Button variant="ghost" onClick={onClose}>Close</Button>
@@ -502,8 +513,8 @@ function StepActionModal({
       <form onSubmit={handleSubmit} className="space-y-3">
         {actionType === 'complete' && (
           <>
-            <Input label="Actual Input Qty" type="number" step="0.001" min="0" value={inputQty} onChange={(e) => setInputQty(e.target.value)} error={errors.actual_input_qty} placeholder="200.000" />
-            <Input label="Actual Output Qty" type="number" step="0.001" min="0" value={outputQty} onChange={(e) => setOutputQty(e.target.value)} error={errors.actual_output_qty} placeholder="190.000" />
+            <Input label={`Actual Input Qty (${currentStep?.input_unit || lot.unit || 'unit'})`} type="number" step={qtyStepAttr(currentStep?.input_unit)} min="0" value={inputQty} onChange={(e) => setInputQty(e.target.value)} error={errors.actual_input_qty} placeholder={qtyPlaceholder(currentStep?.input_unit)} />
+            <Input label={`Actual Output Qty (${currentStep?.output_unit || lot.unit || 'unit'})`} type="number" step={qtyStepAttr(currentStep?.output_unit)} min="0" value={outputQty} onChange={(e) => setOutputQty(e.target.value)} error={errors.actual_output_qty} placeholder={qtyPlaceholder(currentStep?.output_unit)} />
             <Input label="Machine Name" value={machineName} onChange={(e) => setMachineName(e.target.value)} placeholder="Press-A1" maxLength={100} />
             <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} maxLength={1000} />
           </>
@@ -524,11 +535,11 @@ function StepActionModal({
         {actionType === 'override' && (
           <>
             <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mb-1">
-              This overwrites the recorded quantities/notes for a completed step. Leave a field blank to keep its current value.
+              This overwrites the recorded quantities for a completed step. Leave a quantity field blank to keep its current value. A reason is required.
             </p>
-            <Input label="Actual Input Qty" type="number" step="0.001" min="0" value={overrideInputQty} onChange={(e) => setOverrideInputQty(e.target.value)} error={errors.actual_input_qty} placeholder="200.000" />
-            <Input label="Actual Output Qty" type="number" step="0.001" min="0" value={overrideOutputQty} onChange={(e) => setOverrideOutputQty(e.target.value)} error={errors.actual_output_qty} placeholder="190.000" />
-            <Textarea label="Notes" value={overrideNotes} onChange={(e) => setOverrideNotes(e.target.value)} rows={2} maxLength={1000} />
+            <Input label={`Actual Input Qty (${currentStep?.input_unit || lot.unit || 'unit'})`} type="number" step={qtyStepAttr(currentStep?.input_unit)} min="0" value={overrideInputQty} onChange={(e) => setOverrideInputQty(e.target.value)} error={errors.actual_input_qty} placeholder={qtyPlaceholder(currentStep?.input_unit)} />
+            <Input label={`Actual Output Qty (${currentStep?.output_unit || lot.unit || 'unit'})`} type="number" step={qtyStepAttr(currentStep?.output_unit)} min="0" value={overrideOutputQty} onChange={(e) => setOverrideOutputQty(e.target.value)} error={errors.actual_output_qty} placeholder={qtyPlaceholder(currentStep?.output_unit)} />
+            <Textarea label="Reason for Change" value={overrideNotes} onChange={(e) => setOverrideNotes(e.target.value)} error={errors.notes} rows={2} maxLength={1000} placeholder="e.g. Corrected after physical recount" />
           </>
         )}
         {actionType === 'analytics' && (
@@ -551,7 +562,7 @@ function StepActionModal({
                   error={errors.scrap_type}
                 />
                 <div className="grid grid-cols-2 gap-2">
-                  <Input label="Quantity" type="number" step="0.001" min="0" value={scrapQty} onChange={(e) => setScrapQty(e.target.value)} error={errors.quantity} />
+                  <Input label="Quantity" type="number" step={qtyStepAttr(scrapUnit)} min="0" value={scrapQty} onChange={(e) => setScrapQty(e.target.value)} error={errors.quantity} />
                   <Select label="Unit" options={[{ value: 'kg', label: 'kg' }, { value: 'pcs', label: 'pcs' }, { value: 'g', label: 'g' }]} value={scrapUnit} onChange={(e) => setScrapUnit(e.target.value)} placeholder="" />
                 </div>
                 <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} maxLength={1000} />
@@ -569,7 +580,7 @@ function StepActionModal({
               <>
                 <Select
                   label="Consumable"
-                  options={consumables.map((c) => ({ value: c.id, label: `${c.name} (${c.unit}) — ${c.stock_qty} in stock` }))}
+                  options={consumables.map((c) => ({ value: c.id, label: `${c.name} (${c.unit}) — ${c.current_stock} in stock` }))}
                   value={consumableId || ''}
                   onChange={(e) => setConsumableId(Number(e.target.value))}
                   placeholder="Select consumable…"
@@ -582,7 +593,7 @@ function StepActionModal({
                     value={consumableQty}
                     onChange={(e) => setConsumableQty(e.target.value)}
                     error={errors.quantity}
-                    hint={selectedConsumable ? `${formatQty(selectedConsumable.stock_qty, selectedConsumable.unit)} in stock` : undefined}
+                    hint={selectedConsumable ? `${formatQty(selectedConsumable.current_stock, selectedConsumable.unit)} in stock` : undefined}
                   />
                   <Input
                     label="Unit"
@@ -601,17 +612,128 @@ function StepActionModal({
   );
 }
 
-function StepAnalyticsView({ loading, error, data }: { loading: boolean; error: string | null; data: StepVariance | null }) {
-  if (loading) return <p className="text-sm text-[var(--ink-muted)] text-center py-4">Loading analytics…</p>;
+function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--ink-muted)]">{title}</h4>
+      {children}
+    </div>
+  );
+}
+
+function StepAnalyticsView({ loading, error, data }: { loading: boolean; error: string | null; data: LotStep | null }) {
+  const { user } = useAuthStore();
+  // Only the roles that can actually perform an override (see `canOverride` above) get to
+  // see who corrected a step and why — the backend also strips this for other roles, so
+  // this just avoids showing a misleading "no corrections" empty state to everyone else.
+  const canViewOverrideHistory = canAccess(user, 'lots', 'override');
+
+  if (loading) return <p className="text-sm text-[var(--ink-muted)] text-center py-4">Loading…</p>;
   if (error) return <p className="text-sm text-red-600">{error}</p>;
-  if (!data) return <p className="text-sm text-[var(--ink-muted)] italic">No analytics available for this step yet.</p>;
+  if (!data) return <p className="text-sm text-[var(--ink-muted)] italic">No detail available for this step yet.</p>;
+
+  const v = data.variance;
 
   return (
-    <dl className="space-y-2 text-sm">
-      <div className="flex justify-between"><dt className="text-[var(--ink-muted)]">Input variance</dt><dd className="font-mono">{data.input_diff.toFixed(3)} ({data.input_diff_pct.toFixed(1)}%)</dd></div>
-      <div className="flex justify-between"><dt className="text-[var(--ink-muted)]">Output variance</dt><dd className="font-mono">{data.output_diff.toFixed(3)} ({data.output_diff_pct.toFixed(1)}%)</dd></div>
-      <div className="flex justify-between"><dt className="text-[var(--ink-muted)]">Yield</dt><dd className="font-mono">{data.yield_pct.toFixed(1)}%</dd></div>
-      <div className="flex justify-between"><dt className="text-[var(--ink-muted)]">Total scrap</dt><dd className="font-mono">{formatQty(data.total_scrap, data.scrap_unit)}</dd></div>
-    </dl>
+    <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-1">
+      <DetailSection title="Overview">
+        <dl className="space-y-1.5 text-sm">
+          <DL label="Status"><Badge variant={stepStatusBadge(data.status)}>{data.status}</Badge></DL>
+          {data.machine_name && <DL label="Machine">{data.machine_name}</DL>}
+          {data.operator_name && <DL label="Operator">{data.operator_name}</DL>}
+          <DL label="Started">{formatDateTime(data.started_at ?? undefined)}</DL>
+          <DL label="Completed">{formatDateTime(data.completed_at ?? undefined)}</DL>
+          {data.notes && <DL label="Notes">{data.notes}</DL>}
+        </dl>
+      </DetailSection>
+
+      <DetailSection title="Quantities">
+        <dl className="space-y-1.5 text-sm">
+          <DL label="Expected Input">{formatQty(data.expected_input_qty ?? undefined, data.input_unit)}</DL>
+          <DL label="Actual Input">{formatQty(data.actual_input_qty ?? undefined, data.input_unit)}</DL>
+          <DL label="Expected Output">{formatQty(data.expected_output_qty ?? undefined, data.output_unit)}</DL>
+          <DL label="Actual Output">{formatQty(data.actual_output_qty ?? undefined, data.output_unit)}</DL>
+          {v && (
+            <>
+              <DL label="Input Variance">{v.input_diff.toFixed(3)} ({v.input_diff_pct.toFixed(1)}%)</DL>
+              <DL label="Output Variance">{v.output_diff.toFixed(3)} ({v.output_diff_pct.toFixed(1)}%)</DL>
+              <DL label="Yield">{v.yield_pct.toFixed(1)}%</DL>
+              <DL label="Total Scrap">{formatQty(v.total_scrap, v.scrap_unit)}</DL>
+            </>
+          )}
+        </dl>
+      </DetailSection>
+
+      <DetailSection title={`Scrap Entries${data.scrap_entries?.length ? ` (${data.scrap_entries.length})` : ''}`}>
+        {!data.scrap_entries?.length ? (
+          <p className="text-sm text-[var(--ink-muted)] italic">No scrap recorded for this step.</p>
+        ) : (
+          <div className="border border-[var(--border-light)] rounded-md divide-y divide-[var(--border-light)]">
+            {data.scrap_entries.map((se) => (
+              <div key={se.id} className="px-3 py-2 text-sm flex items-center justify-between gap-2">
+                <div>
+                  <span className="font-medium">{se.scrap_type.replace('_', ' ')}</span>
+                  <span className="text-[var(--ink-muted)]"> — {formatQty(se.quantity, se.unit)}</span>
+                  {se.notes && <p className="text-xs text-[var(--ink-muted)]">{se.notes}</p>}
+                </div>
+                <div className="text-right text-xs text-[var(--ink-muted)] flex-shrink-0">
+                  {se.recorded_by_name && <div>{se.recorded_by_name}</div>}
+                  <div>{formatDateTime(se.created_at)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </DetailSection>
+
+      <DetailSection title={`Consumables Used${data.consumable_usages?.length ? ` (${data.consumable_usages.length})` : ''}`}>
+        {!data.consumable_usages?.length ? (
+          <p className="text-sm text-[var(--ink-muted)] italic">No consumables recorded for this step.</p>
+        ) : (
+          <div className="border border-[var(--border-light)] rounded-md divide-y divide-[var(--border-light)]">
+            {data.consumable_usages.map((cu) => (
+              <div key={cu.id} className="px-3 py-2 text-sm flex items-center justify-between gap-2">
+                <span className="font-medium">{cu.consumable_name}</span>
+                <div className="text-right text-xs text-[var(--ink-muted)] flex-shrink-0">
+                  <div className="text-sm text-[var(--ink)] font-mono">{formatQty(cu.quantity, cu.unit)}</div>
+                  <div>{formatDateTime(cu.created_at)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </DetailSection>
+
+      {canViewOverrideHistory && (
+        <DetailSection title={`Override History${data.override_history?.length ? ` (${data.override_history.length})` : ''}`}>
+          {!data.override_history?.length ? (
+            <p className="text-sm text-[var(--ink-muted)] italic">No manual corrections have been made to this step.</p>
+          ) : (
+            <div className="border border-[var(--border-light)] rounded-md divide-y divide-[var(--border-light)]">
+              {data.override_history.map((o) => (
+                <div key={o.id} className="px-3 py-2 text-sm space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-[var(--ink-muted)]">
+                      {o.changed_by_name || 'Unknown'} · {formatDateTime(o.created_at)}
+                    </span>
+                  </div>
+                  {(o.previous_input_qty != null || o.new_input_qty != null) && (
+                    <div className="text-xs">
+                      Input: <span className="font-mono">{o.previous_input_qty ?? '—'}</span> → <span className="font-mono font-semibold">{o.new_input_qty ?? '—'}</span> {data.input_unit}
+                    </div>
+                  )}
+                  {(o.previous_output_qty != null || o.new_output_qty != null) && (
+                    <div className="text-xs">
+                      Output: <span className="font-mono">{o.previous_output_qty ?? '—'}</span> → <span className="font-mono font-semibold">{o.new_output_qty ?? '—'}</span> {data.output_unit}
+                    </div>
+                  )}
+                  <div className="text-xs text-[var(--ink-muted)] italic">Reason: {o.reason}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </DetailSection>
+      )}
+    </div>
   );
 }

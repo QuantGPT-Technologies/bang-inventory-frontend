@@ -3,19 +3,33 @@ import { STEP_SCRAP_TYPES } from './utils';
 
 // --- Shared primitives ---
 
+/** Units that count discrete items and so must be recorded as whole numbers. Mirrors constants.IntegerUnits on the backend. */
+export const INTEGER_UNITS = new Set(['pcs']);
+
+function qtySchema(sign: 'gt0' | 'gte0', unit?: string) {
+  let schema = z
+    .number({ error: 'Quantity is required' })
+    .refine((v) => Number.isFinite(v), { message: 'Enter a valid number' });
+  schema = sign === 'gt0'
+    ? schema.refine((v) => v > 0, { message: 'Must be greater than 0' })
+    : schema.refine((v) => v >= 0, { message: 'Cannot be negative' });
+  if (unit && INTEGER_UNITS.has(unit)) {
+    return schema.refine((v) => Number.isInteger(v), { message: `Must be a whole number for unit '${unit}'` });
+  }
+  return schema.refine((v) => Math.round(v * 1000) === v * 1000, { message: 'Max 3 decimal places' });
+}
+
 /** Positive quantity: finite number > 0, matches DECIMAL(*, 3) style backend fields. */
-export const positiveQty = z
-  .number({ error: 'Quantity is required' })
-  .refine((v) => Number.isFinite(v), { message: 'Enter a valid number' })
-  .refine((v) => v > 0, { message: 'Must be greater than 0' })
-  .refine((v) => Math.round(v * 1000) === v * 1000, { message: 'Max 3 decimal places' });
+export const positiveQty = qtySchema('gt0');
 
 /** Non-negative quantity (0 is allowed, e.g. spillage/output can legitimately be 0). */
-export const nonNegativeQty = z
-  .number({ error: 'Quantity is required' })
-  .refine((v) => Number.isFinite(v), { message: 'Enter a valid number' })
-  .refine((v) => v >= 0, { message: 'Cannot be negative' })
-  .refine((v) => Math.round(v * 1000) === v * 1000, { message: 'Max 3 decimal places' });
+export const nonNegativeQty = qtySchema('gte0');
+
+/** Same as positiveQty, but whole-number-only when unit counts discrete items (e.g. "pcs"). */
+export const positiveQtyForUnit = (unit?: string) => qtySchema('gt0', unit);
+
+/** Same as nonNegativeQty, but whole-number-only when unit counts discrete items (e.g. "pcs"). */
+export const nonNegativeQtyForUnit = (unit?: string) => qtySchema('gte0', unit);
 
 export const positiveId = z
   .number({ error: 'This field is required' })
@@ -251,37 +265,53 @@ export const startStepSchema = z.object({
   machine_name: optionalText(100),
 });
 
-export const completeStepSchema = z
-  .object({
-    actual_input_qty: positiveQty,
-    actual_output_qty: nonNegativeQty,
+/**
+ * Output-vs-input qty comparison only makes sense when input and output share a unit
+ * (e.g. kg -> kg). Steps like compaction convert kg of powder into a pcs count, where
+ * the raw numbers are unrelated, so the check must be skipped in that case.
+ */
+export function completeStepSchema(inputUnit?: string, outputUnit?: string) {
+  const base = z.object({
+    actual_input_qty: positiveQtyForUnit(inputUnit),
+    actual_output_qty: nonNegativeQtyForUnit(outputUnit),
     machine_name: optionalText(100),
     notes: optionalText(1000),
-  })
-  .refine((d) => d.actual_output_qty <= d.actual_input_qty, {
+  });
+  if (!inputUnit || !outputUnit || inputUnit !== outputUnit) return base;
+  return base.refine((d) => d.actual_output_qty <= d.actual_input_qty, {
     message: 'Output cannot exceed input',
     path: ['actual_output_qty'],
   });
+}
 
-/** PUT /lots/:id/steps/:step — manual override of a completed step's recorded qty/notes. */
-export const overrideStepSchema = z
-  .object({
-    actual_input_qty: positiveQty.optional(),
-    actual_output_qty: nonNegativeQty.optional(),
-    notes: optionalText(1000),
-  })
-  .refine((d) => d.actual_input_qty == null || d.actual_output_qty == null || d.actual_output_qty <= d.actual_input_qty, {
+/**
+ * PUT /lots/:id/steps/:step — manual override of a completed step's recorded qty/notes.
+ * `notes` doubles as the mandatory reason for the change, for audit/reconciliation purposes.
+ */
+export function overrideStepSchema(inputUnit?: string, outputUnit?: string) {
+  const base = z.object({
+    actual_input_qty: positiveQtyForUnit(inputUnit).optional(),
+    actual_output_qty: nonNegativeQtyForUnit(outputUnit).optional(),
+    notes: z
+      .string({ error: 'Reason is required' })
+      .trim()
+      .min(3, 'Reason must be at least 3 characters')
+      .max(1000, 'Reason must be 1000 characters or fewer'),
+  });
+  if (!inputUnit || !outputUnit || inputUnit !== outputUnit) return base;
+  return base.refine((d) => d.actual_input_qty == null || d.actual_output_qty == null || d.actual_output_qty <= d.actual_input_qty, {
     message: 'Output cannot exceed input',
     path: ['actual_output_qty'],
   });
+}
 
-export function scrapSchema(stepName: string) {
+export function scrapSchema(stepName: string, unit?: string) {
   const allowed = STEP_SCRAP_TYPES[stepName] || [];
   return z.object({
     scrap_type: z.string().refine((v) => allowed.includes(v), {
       message: allowed.length ? `Must be one of: ${allowed.join(', ')}` : 'This step does not allow scrap entries',
     }),
-    quantity: positiveQty,
+    quantity: positiveQtyForUnit(unit),
     unit: optionalText(20),
     notes: optionalText(1000),
   });

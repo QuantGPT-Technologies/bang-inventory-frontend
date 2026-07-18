@@ -56,10 +56,10 @@ export default function RawMaterialsPage() {
     { key: 'code', header: 'Code', render: (r: RawMaterial) => r.code ? <span className="font-mono">{r.code}</span> : '—' },
     { key: 'vendor_name', header: 'Vendor', render: (r: RawMaterial) => r.vendor_name || '—' },
     {
-      key: 'stock_qty',
+      key: 'current_stock',
       header: 'Stock',
       render: (r: RawMaterial) => (
-        <span className={`font-mono ${r.stock_qty <= 0 ? 'text-red-600' : ''}`}>{formatQty(r.stock_qty, r.unit)}</span>
+        <span className={`font-mono ${r.current_stock <= 0 ? 'text-red-600' : ''}`}>{formatQty(r.current_stock, r.unit)}</span>
       ),
     },
     { key: 'created_at', header: 'Added', render: (r: RawMaterial) => formatDate(r.created_at) },
@@ -70,7 +70,7 @@ export default function RawMaterialsPage() {
             header: '',
             render: (r: RawMaterial) => (
               <button
-                onClick={(e) => { e.stopPropagation(); setShowAdjust({ id: r.id, name: r.name, stock: r.stock_qty, unit: r.unit }); }}
+                onClick={(e) => { e.stopPropagation(); setShowAdjust({ id: r.id, name: r.name, stock: r.current_stock, unit: r.unit }); }}
                 className="p-1 text-[var(--ink-muted)] hover:text-[var(--accent)]"
                 title="Adjust stock"
               >
@@ -162,7 +162,7 @@ function CreateMaterialModal({
 
     setLoading(true);
     try {
-      await rawMaterialsApi.create({ ...result.data, stock_qty: 0 });
+      await rawMaterialsApi.create(result.data);
       toast.success('Raw material created');
       onCreated();
     } catch (err) {

@@ -47,6 +47,7 @@ export interface SKU {
   customer_id?: number;
   customer_name?: string;
   unit: string;
+  current_stock: number;
   is_active: boolean;
   materials?: SKUMaterial[];
   created_at: string;
@@ -57,7 +58,7 @@ export interface RawMaterial {
   name: string;
   code?: string;
   unit: string;
-  stock_qty: number;
+  current_stock: number;
   vendor_id?: number;
   vendor_name?: string;
   created_at: string;
@@ -68,7 +69,7 @@ export interface Consumable {
   name: string;
   code?: string;
   unit: string;
-  stock_qty: number;
+  current_stock: number;
   created_at: string;
 }
 
@@ -137,6 +138,30 @@ export interface StepVariance {
   scrap_unit: string;
 }
 
+export interface ConsumableUsageDetail {
+  id: number;
+  lot_step_id: number;
+  consumable_id: number;
+  consumable_name: string;
+  quantity: number;
+  unit: string;
+  created_at: string;
+}
+
+export interface StepOverride {
+  id: number;
+  lot_step_id: number;
+  previous_input_qty?: number | null;
+  previous_output_qty?: number | null;
+  previous_notes?: string | null;
+  new_input_qty?: number | null;
+  new_output_qty?: number | null;
+  reason: string;
+  changed_by: number;
+  changed_by_name?: string;
+  created_at: string;
+}
+
 export interface LotStep {
   id: number;
   lot_id?: number;
@@ -157,6 +182,8 @@ export interface LotStep {
   started_at?: string | null;
   completed_at?: string | null;
   scrap_entries?: ScrapEntry[];
+  consumable_usages?: ConsumableUsageDetail[];
+  override_history?: StepOverride[];
   variance?: StepVariance | null;
 }
 

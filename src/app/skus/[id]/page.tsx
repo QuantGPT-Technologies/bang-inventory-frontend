@@ -13,7 +13,7 @@ import Textarea from '@/components/ui/Textarea';
 import { toast } from '@/components/ui/Toast';
 import { skusApi, customersApi, rawMaterialsApi } from '@/lib/api';
 import { SKU, Customer, RawMaterial } from '@/lib/types';
-import { formatDate, parseApiError } from '@/lib/utils';
+import { formatDate, formatQty, parseApiError } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import { skuSchema, skuMaterialRowSchema, validate, toNumber, type FieldErrors } from '@/lib/validation';
@@ -101,6 +101,7 @@ export default function SKUDetailPage() {
               <DL label="Name">{sku.name}</DL>
               <DL label="Customer">{sku.customer_name || 'Internal / No customer'}</DL>
               <DL label="Unit">{sku.unit}</DL>
+              <DL label="Stock"><span className="font-mono">{formatQty(sku.current_stock, sku.unit)}</span></DL>
               <DL label="Status">
                 <Badge variant={sku.is_active ? 'success' : 'muted'}>{sku.is_active ? 'Active' : 'Inactive'}</Badge>
               </DL>
