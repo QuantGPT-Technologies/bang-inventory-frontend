@@ -1,0 +1,337 @@
+import { z } from 'zod';
+import { STEP_SCRAP_TYPES } from './utils';
+
+// --- Shared primitives ---
+
+/** Positive quantity: finite number > 0, matches DECIMAL(*, 3) style backend fields. */
+export const positiveQty = z
+  .number({ error: 'Quantity is required' })
+  .refine((v) => Number.isFinite(v), { message: 'Enter a valid number' })
+  .refine((v) => v > 0, { message: 'Must be greater than 0' })
+  .refine((v) => Math.round(v * 1000) === v * 1000, { message: 'Max 3 decimal places' });
+
+/** Non-negative quantity (0 is allowed, e.g. spillage/output can legitimately be 0). */
+export const nonNegativeQty = z
+  .number({ error: 'Quantity is required' })
+  .refine((v) => Number.isFinite(v), { message: 'Enter a valid number' })
+  .refine((v) => v >= 0, { message: 'Cannot be negative' })
+  .refine((v) => Math.round(v * 1000) === v * 1000, { message: 'Max 3 decimal places' });
+
+export const positiveId = z
+  .number({ error: 'This field is required' })
+  .int('Invalid selection')
+  .positive('This field is required');
+
+export const requiredText = (label: string, max = 255) =>
+  z
+    .string({ error: `${label} is required` })
+    .trim()
+    .min(1, `${label} is required`)
+    .max(max, `${label} must be ${max} characters or fewer`);
+
+export const optionalText = (max = 500) =>
+  z.string().trim().max(max, `Must be ${max} characters or fewer`).optional().or(z.literal(''));
+
+export const email = z.string().trim().toLowerCase().email('Enter a valid email address');
+export const optionalEmail = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(255)
+  .refine((v) => v === '' || z.string().email().safeParse(v).success, 'Enter a valid email address')
+  .optional()
+  .or(z.literal(''));
+
+// --- Helper: parse a raw string form field into a number, or undefined if blank ---
+export function toNumber(raw: string): number | undefined {
+  if (raw === '' || raw == null) return undefined;
+  const n = Number(raw);
+  return Number.isNaN(n) ? undefined : n;
+}
+
+// --- Auth ---
+
+export const loginSchema = z.object({
+  email: requiredText('Email', 255).pipe(z.string().email('Enter a valid email address')),
+  password: requiredText('Password', 255),
+});
+
+export const changePasswordSchema = z
+  .object({
+    old_password: requiredText('Current password'),
+    new_password: requiredText('New password', 100).pipe(z.string().min(6, 'New password must be at least 6 characters')),
+    confirm_password: requiredText('Confirm password'),
+  })
+  .refine((d) => d.new_password === d.confirm_password, {
+    message: 'Passwords do not match',
+    path: ['confirm_password'],
+  })
+  .refine((d) => d.new_password !== d.old_password, {
+    message: 'New password must be different from current password',
+    path: ['new_password'],
+  });
+
+// --- Users ---
+
+export const ROLES = ['admin', 'manager', 'engineer', 'production'] as const;
+
+export const createUserSchema = z.object({
+  name: requiredText('Name', 100),
+  email: requiredText('Email', 255).pipe(z.string().email('Enter a valid email address')),
+  password: requiredText('Password', 100).pipe(z.string().min(6, 'Password must be at least 6 characters')),
+  role: z.enum(ROLES, { error: 'Select a role' }),
+});
+
+// --- Customers / Vendors ---
+
+export const customerSchema = z.object({
+  code: optionalText(50),
+  name: requiredText('Name', 150),
+  contact_person: optionalText(150),
+  email: optionalEmail,
+  phone: optionalText(30),
+  address: optionalText(500),
+});
+
+export const vendorSchema = z.object({
+  code: optionalText(50),
+  name: requiredText('Name', 150),
+  contact_person: optionalText(150),
+  email: optionalEmail,
+  phone: optionalText(30),
+});
+
+// --- SKUs ---
+
+export const skuMaterialRowSchema = z.object({
+  raw_material_id: positiveId,
+  ratio_percent: z
+    .number({ error: 'Ratio is required' })
+    .refine((v) => Number.isFinite(v), 'Enter a valid number')
+    .gt(0, 'Must be greater than 0')
+    .lte(100, 'Cannot exceed 100%'),
+});
+
+export const skuSchema = z
+  .object({
+    code: requiredText('Code', 50),
+    name: requiredText('Name', 150),
+    description: optionalText(1000),
+    customer_id: z.number().int().positive().optional(),
+    unit: requiredText('Unit', 20),
+    materials: z.array(skuMaterialRowSchema),
+  })
+  .superRefine((d, ctx) => {
+    const ids = d.materials.map((m) => m.raw_material_id);
+    const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
+    if (dupes.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Each raw material can only be listed once',
+        path: ['materials'],
+      });
+    }
+    if (d.materials.length > 0) {
+      const total = d.materials.reduce((s, m) => s + m.ratio_percent, 0);
+      if (Math.abs(total - 100) > 0.01) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `Material ratios must total 100% (currently ${total.toFixed(1)}%)`,
+          path: ['materials'],
+        });
+      }
+    }
+  });
+
+// --- Raw Materials / Consumables ---
+
+export const rawMaterialSchema = z.object({
+  name: requiredText('Name', 150),
+  code: optionalText(50),
+  vendor_id: z.number().int().positive().optional(),
+  unit: requiredText('Unit', 20),
+});
+
+export const consumableSchema = z.object({
+  name: requiredText('Name', 150),
+  code: optionalText(50),
+  unit: requiredText('Unit', 20),
+});
+
+/**
+ * POST /raw-materials/:id/stock and /consumables/:id/stock take { quantity, reason }:
+ * positive quantity = receive stock, negative = consume stock. Not an add/remove/set toggle.
+ */
+export const stockAdjustSchema = z
+  .object({
+    direction: z.enum(['receive', 'consume'], { error: 'Select a direction' }),
+    quantity: z
+      .number({ error: 'Quantity is required' })
+      .refine((v) => Number.isFinite(v), 'Enter a valid number')
+      .gt(0, 'Must be greater than 0'),
+    currentStock: z.number(),
+    reason: requiredText('Reason', 500),
+  })
+  .superRefine((d, ctx) => {
+    if (d.direction === 'consume' && d.quantity > d.currentStock) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `Cannot consume more than current stock (${d.currentStock})`,
+        path: ['quantity'],
+      });
+    }
+  });
+
+// --- Batches ---
+
+export const batchMaterialRowSchema = z.object({
+  raw_material_id: positiveId,
+  planned_qty: positiveQty,
+});
+
+export const createBatchSchema = z
+  .object({
+    total_blend_qty: positiveQty,
+    unit: requiredText('Unit', 20),
+    materials: z.array(batchMaterialRowSchema).min(1, 'Add at least one raw material'),
+    notes: optionalText(1000),
+  })
+  .superRefine((d, ctx) => {
+    const ids = d.materials.map((m) => m.raw_material_id);
+    const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
+    if (dupes.length > 0) {
+      ctx.addIssue({ code: 'custom', message: 'Each raw material can only be listed once', path: ['materials'] });
+    }
+  });
+
+// POST /batches/:id/blend takes no body -- it only transitions status to "blending".
+
+const actualMaterialRowSchema = z.object({
+  raw_material_id: positiveId,
+  actual_qty: nonNegativeQty,
+});
+
+const batchScrapRowSchema = z.object({
+  scrap_type: z.literal('spillage'),
+  quantity: positiveQty,
+  unit: optionalText(20),
+  notes: optionalText(1000),
+});
+
+export const completeBlendSchema = z.object({
+  actual_materials: z.array(actualMaterialRowSchema),
+  scrap: z.array(batchScrapRowSchema),
+});
+
+export const lotSplitRowSchema = z.object({
+  sku_id: positiveId,
+  quantity: positiveQty,
+});
+
+export function splitLotsSchema(batchRemainingQty: number) {
+  return z
+    .object({
+      lots: z.array(lotSplitRowSchema).min(1, 'Add at least one lot'),
+    })
+    .superRefine((d, ctx) => {
+      const total = d.lots.reduce((s, l) => s + l.quantity, 0);
+      if (Math.abs(total - batchRemainingQty) > 0.001) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `Lot quantities must sum to ${batchRemainingQty.toFixed(3)} (currently ${total.toFixed(3)})`,
+          path: ['lots'],
+        });
+      }
+    });
+}
+
+// --- Lot steps ---
+
+export const startStepSchema = z.object({
+  machine_name: optionalText(100),
+});
+
+export const completeStepSchema = z
+  .object({
+    actual_input_qty: positiveQty,
+    actual_output_qty: nonNegativeQty,
+    machine_name: optionalText(100),
+    notes: optionalText(1000),
+  })
+  .refine((d) => d.actual_output_qty <= d.actual_input_qty, {
+    message: 'Output cannot exceed input',
+    path: ['actual_output_qty'],
+  });
+
+/** PUT /lots/:id/steps/:step — manual override of a completed step's recorded qty/notes. */
+export const overrideStepSchema = z
+  .object({
+    actual_input_qty: positiveQty.optional(),
+    actual_output_qty: nonNegativeQty.optional(),
+    notes: optionalText(1000),
+  })
+  .refine((d) => d.actual_input_qty == null || d.actual_output_qty == null || d.actual_output_qty <= d.actual_input_qty, {
+    message: 'Output cannot exceed input',
+    path: ['actual_output_qty'],
+  });
+
+export function scrapSchema(stepName: string) {
+  const allowed = STEP_SCRAP_TYPES[stepName] || [];
+  return z.object({
+    scrap_type: z.string().refine((v) => allowed.includes(v), {
+      message: allowed.length ? `Must be one of: ${allowed.join(', ')}` : 'This step does not allow scrap entries',
+    }),
+    quantity: positiveQty,
+    unit: optionalText(20),
+    notes: optionalText(1000),
+  });
+}
+
+export const consumableUsageSchema = z.object({
+  consumable_id: positiveId,
+  quantity: positiveQty,
+  unit: requiredText('Unit', 20),
+});
+
+// --- Webhooks ---
+
+export const webhookSchema = z.object({
+  name: requiredText('Name', 150),
+  url: requiredText('URL', 500).pipe(
+    z.string().refine((v) => {
+      try {
+        const u = new URL(v);
+        return u.protocol === 'http:' || u.protocol === 'https:';
+      } catch {
+        return false;
+      }
+    }, 'Enter a valid http(s) URL')
+  ),
+  secret: optionalText(255),
+  events: z.array(z.string()).min(1, 'Select at least one event'),
+  is_active: z.boolean(),
+});
+
+// --- Generic helpers for wiring zod into plain useState forms ---
+
+export type FieldErrors = Record<string, string>;
+
+/** Flatten a ZodError into a { path: message } map keyed by top-level (dot-joined) path. */
+export function flattenZodError(error: z.ZodError): FieldErrors {
+  const out: FieldErrors = {};
+  for (const issue of error.issues) {
+    const key = issue.path.join('.') || '_root';
+    if (!out[key]) out[key] = issue.message;
+  }
+  return out;
+}
+
+/** Run a schema; return { data } on success or { errors } keyed by field path on failure. */
+export function validate<T>(
+  schema: z.ZodType<T>,
+  value: unknown
+): { success: true; data: T } | { success: false; errors: FieldErrors } {
+  const result = schema.safeParse(value);
+  if (result.success) return { success: true, data: result.data };
+  return { success: false, errors: flattenZodError(result.error) };
+}
