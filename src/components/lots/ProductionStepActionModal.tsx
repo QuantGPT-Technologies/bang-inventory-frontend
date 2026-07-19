@@ -41,6 +41,7 @@ export function ProductionStepActionModal({
   actionType,
   nodeKey,
   allowedScrapTypes,
+  defaultScrapUnit,
   consumables,
   onClose,
   onDone,
@@ -53,6 +54,9 @@ export function ProductionStepActionModal({
   // this component doesn't have the workflow graph node, only nodeKey, so it can't resolve this
   // itself.
   allowedScrapTypes: string[];
+  // The template author's own config.default_scrap_unit, when set -- a prefill only, the unit
+  // Select stays fully editable.
+  defaultScrapUnit?: string;
   consumables: Consumable[];
   onClose: () => void;
   onDone: () => void;
@@ -70,9 +74,11 @@ export function ProductionStepActionModal({
   // Intentionally starts blank (not prefilled from currentStep.notes) — it's the mandatory
   // reason for *this* override, not a continuation of the step's original completion notes.
   const [overrideNotes, setOverrideNotes] = useState('');
-  const [scrapType, setScrapType] = useState('');
+  // A single allowed type is an unambiguous default (no real choice being masked); more than one
+  // still starts blank so the operator picks deliberately.
+  const [scrapType, setScrapType] = useState(allowedScrapTypes.length === 1 ? allowedScrapTypes[0] : '');
   const [scrapQty, setScrapQty] = useState('');
-  const [scrapUnit, setScrapUnit] = useState('kg');
+  const [scrapUnit, setScrapUnit] = useState(defaultScrapUnit || 'kg');
   const [consumableId, setConsumableId] = useState<number>(0);
   const [consumableQty, setConsumableQty] = useState('');
   const [consumableUnit, setConsumableUnit] = useState('');

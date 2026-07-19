@@ -25,7 +25,7 @@ import { Play, CheckCircle, SkipForward, AlertTriangle, Package, Pencil, BarChar
 type PipelineView = 'list' | 'graph';
 
 type ActionModalState =
-  | { kind: 'production'; type: ProductionActionType | string; nodeKey: string; scrapTypes: string[] }
+  | { kind: 'production'; type: ProductionActionType | string; nodeKey: string; scrapTypes: string[]; defaultScrapUnit?: string }
   | { kind: 'approval'; decision: 'approved' | 'rejected'; nodeKey: string }
   | { kind: 'quality'; result: 'pass' | 'fail'; nodeKey: string };
 
@@ -36,6 +36,14 @@ function resolveScrapTypes(nodeType: WorkflowNodeType, nodeKey: string, config: 
   if (nodeType !== 'production_step') return [];
   const configured = (config as ProductionStepConfig)?.allowed_scrap_types;
   return configured?.length ? configured : STEP_SCRAP_TYPES[nodeKey] || [];
+}
+
+// The template author's own configured default (e.g. every scrap on this step is normally
+// weighed in grams, not kg) beats a one-size-fits-all hardcoded unit -- still just a prefill,
+// never a restriction, the unit field stays editable.
+function resolveDefaultScrapUnit(nodeType: WorkflowNodeType, config: unknown): string | undefined {
+  if (nodeType !== 'production_step') return undefined;
+  return (config as ProductionStepConfig)?.default_scrap_unit;
 }
 
 export default function LotDetailPage() {
@@ -312,6 +320,7 @@ export default function LotDetailPage() {
               const accentColor = NODE_TYPE_COLORS[nodeType];
               const isOptional = nodeType === 'production_step' && !!SKIPPABLE_STEPS[nodeKey];
               const scrapTypes = resolveScrapTypes(nodeType, nodeKey, node.config);
+              const defaultScrapUnit = resolveDefaultScrapUnit(nodeType, node.config);
               const hasScrapTypes = scrapTypes.length > 0;
               const isCurrent = graph?.current_node_key === nodeKey;
               const instance = node.instance;
@@ -444,7 +453,7 @@ export default function LotDetailPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => setActionModal({ kind: 'production', type: 'scrap', nodeKey, scrapTypes })}
+                            onClick={() => setActionModal({ kind: 'production', type: 'scrap', nodeKey, scrapTypes, defaultScrapUnit })}
                           >
                             <AlertTriangle size={13} /> Record Scrap
                           </Button>
@@ -502,6 +511,7 @@ export default function LotDetailPage() {
           actionType={actionModal.type}
           nodeKey={actionModal.nodeKey}
           allowedScrapTypes={actionModal.scrapTypes}
+          defaultScrapUnit={actionModal.defaultScrapUnit}
           consumables={consumables}
           onClose={() => setActionModal(null)}
           onDone={() => { setActionModal(null); reloadAll(); }}

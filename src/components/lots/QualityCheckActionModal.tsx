@@ -147,7 +147,8 @@ export function QualityCheckActionModal({
                 type="button"
                 onClick={() => removeRow(i)}
                 className="text-[var(--ink-muted)] hover:text-red-600 p-2 flex-shrink-0"
-                title="Remove row"
+                title="Remove measurement"
+                aria-label="Remove measurement"
               >
                 <Trash2 size={14} />
               </button>
