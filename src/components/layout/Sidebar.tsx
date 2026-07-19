@@ -7,7 +7,7 @@ import { canAccess } from '@/lib/auth';
 import {
   Home, Factory, Package2, Users, Building2,
   Truck, FlaskConical, Wrench, Layers, Webhook, Workflow,
-  BarChart3, LogOut, ChevronRight
+  BarChart3, LogOut, ChevronRight, X
 } from 'lucide-react';
 
 // Grouped by what someone actually does, not by backend resource/admin category: the daily
@@ -59,7 +59,13 @@ const navItems = [
   },
 ] as const;
 
-export function Sidebar() {
+/**
+ * Below the `lg` (1024px) breakpoint -- a tablet in portrait, the primary factory-floor device
+ * class -- the sidebar would otherwise permanently eat ~29% of a narrow screen's width. There it
+ * becomes a fixed off-canvas drawer (open/onClose controlled by AppShell) with a backdrop;
+ * at `lg` and above it's back to the persistent static column, unaffected by open/onClose.
+ */
+export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
 
@@ -67,76 +73,100 @@ export function Sidebar() {
     pathname === href || pathname.startsWith(href + '/');
 
   return (
-    <aside className="w-56 flex-shrink-0 bg-[var(--ink)] text-[var(--paper)] flex flex-col h-screen sticky top-0">
-      {/* Brand */}
-      <div className="px-5 py-5 border-b border-white/10">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded bg-[var(--accent)] flex items-center justify-center text-white font-bold text-xs">
-            B
-          </div>
-          <div>
-            <p className="font-semibold text-sm text-[var(--paper)] leading-tight" style={{ fontFamily: 'Playfair Display, serif' }}>
-              Bang Inventory
-            </p>
-            <p className="text-[10px] text-white/40 leading-tight">Production Tracker</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-4">
-        {navItems.map((section, si) => {
-          if ('href' in section) {
-            return (
-              <NavLink key={section.href} href={section.href} icon={section.icon} active={isActive(section.href)}>
-                {section.label}
-              </NavLink>
-            );
-          }
-          const visibleItems = section.items.filter(
-            (item) => !item.resource || canAccess(user, item.resource, item.action)
-          );
-          if (visibleItems.length === 0) return null;
-          return (
-            <div key={si}>
-              <p className="text-[10px] uppercase tracking-widest text-white/30 px-2">
-                {section.label}
-              </p>
-              <p className="text-[10px] text-white/25 px-2 mb-1.5 leading-tight">
-                {section.subtitle}
-              </p>
-              <div className="space-y-0.5">
-                {visibleItems.map((item) => (
-                  <NavLink key={item.href} href={item.href} icon={item.icon} active={isActive(item.href)}>
-                    {item.label}
-                  </NavLink>
-                ))}
-              </div>
+    <>
+      {open && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        className={cn(
+          'w-56 flex-shrink-0 bg-[var(--ink)] text-[var(--paper)] flex flex-col h-screen',
+          'fixed inset-y-0 left-0 z-50 transition-transform duration-200 ease-out',
+          'lg:sticky lg:top-0 lg:translate-x-0',
+          open ? 'translate-x-0' : '-translate-x-full'
+        )}
+      >
+        {/* Brand */}
+        <div className="px-5 py-5 border-b border-white/10 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded bg-[var(--accent)] flex items-center justify-center text-white font-bold text-xs">
+              B
             </div>
-          );
-        })}
-      </nav>
-
-      {/* User */}
-      <div className="px-3 py-3 border-t border-white/10">
-        <div className="flex items-center gap-2 px-2 py-2 rounded-md">
-          <div className="w-7 h-7 rounded-full bg-[var(--accent)] flex items-center justify-center text-white text-xs font-semibold">
-            {user?.name?.[0]?.toUpperCase() || 'U'}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-[var(--paper)] truncate">{user?.name}</p>
-            <p className="text-[10px] text-white/40 capitalize">{user?.role}</p>
+            <div>
+              <p className="font-semibold text-sm text-[var(--paper)] leading-tight" style={{ fontFamily: 'Playfair Display, serif' }}>
+                Bang Inventory
+              </p>
+              <p className="text-[10px] text-white/40 leading-tight">Production Tracker</p>
+            </div>
           </div>
           <button
-            onClick={logout}
-            className="text-white/40 hover:text-white/80 transition-colors"
-            title="Logout"
+            onClick={onClose}
+            aria-label="Close navigation menu"
+            className="lg:hidden text-white/40 hover:text-white/80 transition-colors"
           >
-            <LogOut size={14} />
+            <X size={18} />
           </button>
         </div>
-      </div>
-    </aside>
+
+        {/* Nav */}
+        <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-4">
+          {navItems.map((section, si) => {
+            if ('href' in section) {
+              return (
+                <NavLink key={section.href} href={section.href} icon={section.icon} active={isActive(section.href)} onNavigate={onClose}>
+                  {section.label}
+                </NavLink>
+              );
+            }
+            const visibleItems = section.items.filter(
+              (item) => !item.resource || canAccess(user, item.resource, item.action)
+            );
+            if (visibleItems.length === 0) return null;
+            return (
+              <div key={si}>
+                <p className="text-[10px] uppercase tracking-widest text-white/30 px-2">
+                  {section.label}
+                </p>
+                <p className="text-[10px] text-white/25 px-2 mb-1.5 leading-tight">
+                  {section.subtitle}
+                </p>
+                <div className="space-y-0.5">
+                  {visibleItems.map((item) => (
+                    <NavLink key={item.href} href={item.href} icon={item.icon} active={isActive(item.href)} onNavigate={onClose}>
+                      {item.label}
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </nav>
+
+        {/* User */}
+        <div className="px-3 py-3 border-t border-white/10">
+          <div className="flex items-center gap-2 px-2 py-2 rounded-md">
+            <div className="w-7 h-7 rounded-full bg-[var(--accent)] flex items-center justify-center text-white text-xs font-semibold">
+              {user?.name?.[0]?.toUpperCase() || 'U'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-[var(--paper)] truncate">{user?.name}</p>
+              <p className="text-[10px] text-white/40 capitalize">{user?.role}</p>
+            </div>
+            <button
+              onClick={logout}
+              aria-label="Log out"
+              className="text-white/40 hover:text-white/80 transition-colors"
+              title="Logout"
+            >
+              <LogOut size={14} />
+            </button>
+          </div>
+        </div>
+      </aside>
+    </>
   );
 }
 
@@ -144,16 +174,19 @@ function NavLink({
   href,
   icon: Icon,
   active,
+  onNavigate,
   children,
 }: {
   href: string;
   icon: React.ElementType;
   active: boolean;
+  onNavigate: () => void;
   children: React.ReactNode;
 }) {
   return (
     <Link
       href={href}
+      onClick={onNavigate}
       className={cn(
         'flex items-center gap-2.5 px-2 py-1.5 rounded-md text-xs font-medium transition-all duration-100 group',
         active

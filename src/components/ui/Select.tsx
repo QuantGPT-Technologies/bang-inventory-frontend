@@ -16,7 +16,7 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
     return (
       <div className="flex flex-col gap-1">
         {label && (
-          <label htmlFor={selectId} className="text-xs font-medium text-[var(--ink-light)] uppercase tracking-wide">
+          <label htmlFor={selectId} className="text-sm font-medium text-[var(--ink-light)] uppercase tracking-wide">
             {label}
           </label>
         )}
@@ -39,7 +39,7 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
-        {error && <p className="text-xs text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-600">{error}</p>}
         {hint && !error && <p className="text-xs text-[var(--ink-muted)]">{hint}</p>}
       </div>
     );
