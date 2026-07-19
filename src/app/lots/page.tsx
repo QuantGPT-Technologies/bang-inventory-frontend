@@ -8,11 +8,13 @@ import { Table, Pagination } from '@/components/ui/Table';
 import { Badge, lotStatusBadge } from '@/components/ui/Badge';
 import { ErrorState } from '@/components/ui/ErrorState';
 import Select from '@/components/ui/Select';
+import Input from '@/components/ui/Input';
 import { toast } from '@/components/ui/Toast';
 import { lotsApi } from '@/lib/api';
 import { Lot, PaginatedResponse } from '@/lib/types';
 import { formatDate, formatQty, STEP_LABELS, LOT_STATUS_LABELS } from '@/lib/utils';
 import { useAsyncQuery } from '@/lib/useAsync';
+import { Search } from 'lucide-react';
 
 const PER_PAGE = 20;
 const EMPTY: PaginatedResponse<Lot> = { items: [], total: 0, page: 1, per_page: PER_PAGE };
@@ -22,18 +24,29 @@ export default function LotsPage() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
   const [stepFilter, setStepFilter] = useState('');
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Debounced so typing a lot number doesn't fire a request per keystroke -- jumping straight to
+  // a known lot/SKU/batch number was previously impossible here at all (only coarse status/step
+  // dropdowns existed), the single highest-friction "find my thing" gap on this page.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const fetchLots = useCallback(async () => {
     const params: Record<string, unknown> = { page, per_page: PER_PAGE };
     if (statusFilter) params.status = statusFilter;
     if (stepFilter) params.step = stepFilter;
+    if (debouncedSearch) params.q = debouncedSearch;
     const res = await lotsApi.list(params);
     const data = res.data?.data;
     const items = Array.isArray(data?.items) ? data.items : [];
     return { items, total: typeof data?.total === 'number' ? data.total : items.length, page, per_page: PER_PAGE };
-  }, [page, statusFilter, stepFilter]);
+  }, [page, statusFilter, stepFilter, debouncedSearch]);
 
-  const { data, loading, error, reload } = useAsyncQuery(fetchLots, [page, statusFilter, stepFilter], EMPTY);
+  const { data, loading, error, reload } = useAsyncQuery(fetchLots, [page, statusFilter, stepFilter, debouncedSearch], EMPTY);
   const lots = data.items;
   const total = data.total;
 
@@ -84,6 +97,15 @@ export default function LotsPage() {
 
       <Card noPadding>
         <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border-light)]">
+          <div className="relative w-56">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-muted)] pointer-events-none" />
+            <Input
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              placeholder="Search lot #, SKU, or batch #"
+              className="pl-8 py-1.5 text-xs"
+            />
+          </div>
           <Select
             options={[
               { value: '', label: 'All Statuses' },

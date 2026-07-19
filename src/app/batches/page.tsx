@@ -20,7 +20,7 @@ import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import { createBatchSchema, validate, toNumber, type FieldErrors } from '@/lib/validation';
 import { useAsyncQuery } from '@/lib/useAsync';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, Search } from 'lucide-react';
 
 const PER_PAGE = 20;
 const EMPTY: PaginatedResponse<Batch> = { items: [], total: 0, page: 1, per_page: PER_PAGE };
@@ -30,19 +30,28 @@ export default function BatchesPage() {
   const { user } = useAuthStore();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [rawMaterials, setRawMaterials] = useState<RawMaterial[]>([]);
+
+  // Debounced so typing a batch number doesn't fire a request per keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const fetchBatches = useCallback(async () => {
     const params: Record<string, unknown> = { page, per_page: PER_PAGE };
     if (statusFilter) params.status = statusFilter;
+    if (debouncedSearch) params.q = debouncedSearch;
     const res = await batchesApi.list(params);
     const data = res.data?.data;
     const items = Array.isArray(data?.items) ? data.items : [];
     return { items, total: typeof data?.total === 'number' ? data.total : items.length, page, per_page: PER_PAGE };
-  }, [page, statusFilter]);
+  }, [page, statusFilter, debouncedSearch]);
 
-  const { data, loading, error, reload } = useAsyncQuery(fetchBatches, [page, statusFilter], EMPTY);
+  const { data, loading, error, reload } = useAsyncQuery(fetchBatches, [page, statusFilter, debouncedSearch], EMPTY);
   const batches = data.items;
   const total = data.total;
 
@@ -107,6 +116,15 @@ export default function BatchesPage() {
       <Card noPadding>
         {/* Filters */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border-light)]">
+          <div className="relative w-56">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-muted)] pointer-events-none" />
+            <Input
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              placeholder="Search batch #"
+              className="pl-8 py-1.5 text-xs"
+            />
+          </div>
           <Select
             options={[
               { value: '', label: 'All Statuses' },
