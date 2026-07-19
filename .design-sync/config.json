@@ -1,0 +1,14 @@
+{
+  "pkg": "bang-inventory-ui",
+  "globalName": "BangUI",
+  "projectId": "53b774a9-c97d-4a69-b3e0-1dfed48b1d87",
+  "shape": "package",
+  "srcDir": "../../src/components/ui",
+  "tsconfig": "../../tsconfig.json",
+  "cssEntry": "dist/styles.css",
+  "readmeHeader": ".design-sync/conventions.md",
+  "overrides": {
+    "Modal": { "cardMode": "single", "viewport": "480x420" },
+    "ToastContainer": { "cardMode": "single", "viewport": "420x220" }
+  }
+}
