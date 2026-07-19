@@ -8,8 +8,8 @@ import { Badge, stepStatusBadge, lotStatusBadge } from '@/components/ui/Badge';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { toast } from '@/components/ui/Toast';
 import { lotsApi, consumablesApi } from '@/lib/api';
-import { Lot, Consumable, WorkflowNodeType, LotWorkflowGraph, ProductionStepConfig } from '@/lib/types';
-import { cn, formatDateTime, formatQty, getNodeLabel, STEP_SCRAP_TYPES, SKIPPABLE_STEPS, LOT_STATUS_LABELS, STEP_STATUS_LABELS } from '@/lib/utils';
+import { Lot, Consumable, WorkflowNodeType, LotWorkflowGraph, ProductionStepConfig, ApprovalConfig } from '@/lib/types';
+import { cn, formatDateTime, formatQty, getNodeLabel, STEP_SCRAP_TYPES, SKIPPABLE_STEPS, LOT_STATUS_LABELS, STEP_STATUS_LABELS, ROLE_LABELS } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import { useAsyncQuery } from '@/lib/useAsync';
@@ -19,6 +19,7 @@ import { DL } from '@/components/lots/DL';
 import { ProductionStepActionModal, type ProductionActionType } from '@/components/lots/ProductionStepActionModal';
 import { ApprovalActionModal } from '@/components/lots/ApprovalActionModal';
 import { QualityCheckActionModal } from '@/components/lots/QualityCheckActionModal';
+import Button from '@/components/ui/Button';
 import { Play, CheckCircle, SkipForward, AlertTriangle, Package, Pencil, BarChart3, Check, X, XCircle, List, Workflow } from 'lucide-react';
 
 type PipelineView = 'list' | 'graph';
@@ -27,6 +28,15 @@ type ActionModalState =
   | { kind: 'production'; type: ProductionActionType | string; nodeKey: string; scrapTypes: string[] }
   | { kind: 'approval'; decision: 'approved' | 'rejected'; nodeKey: string }
   | { kind: 'quality'; result: 'pass' | 'fail'; nodeKey: string };
+
+// A production_step node's own config.allowed_scrap_types is the source of truth --
+// STEP_SCRAP_TYPES is a fallback only for the legacy fixed six steps that predate that config
+// field. Shared by the pipeline row loop and the page-header primary action so both agree.
+function resolveScrapTypes(nodeType: WorkflowNodeType, nodeKey: string, config: unknown): string[] {
+  if (nodeType !== 'production_step') return [];
+  const configured = (config as ProductionStepConfig)?.allowed_scrap_types;
+  return configured?.length ? configured : STEP_SCRAP_TYPES[nodeKey] || [];
+}
 
 export default function LotDetailPage() {
   const params = useParams<{ id: string }>();
@@ -117,6 +127,70 @@ export default function LotDetailPage() {
   const stepsByNodeKey = new Map((lot.steps || []).flatMap((s) => (s.node_key ? [[s.node_key, s] as const] : [])));
   const sortedNodes = graph ? [...graph.nodes].sort((a, b) => (a.sequence_hint ?? 0) - (b.sequence_hint ?? 0)) : [];
 
+  // The page-level primary action: one dominant, status-driven call-to-action for whatever the
+  // current node is, mirroring the batch detail page's header button (Start Blending / Complete
+  // Blend / Split into Lots) instead of leaving "what do I do next" to a small pulsing badge
+  // buried in a pipeline row. production_step collapses to a single next step (start or
+  // complete); approval/quality_check are genuine two-way decisions, so both options render as
+  // equally prominent header buttons rather than picking one arbitrarily. When the signed-in
+  // user's role can't act on it, an explanatory "waiting on" message renders instead of a button
+  // that would just 403 -- never a silently missing action.
+  const currentNode = graph?.current_node_key
+    ? sortedNodes.find((n) => n.node_key === graph.current_node_key)
+    : undefined;
+  const scrapTypes = currentNode ? resolveScrapTypes(currentNode.node_type, currentNode.node_key, currentNode.config) : [];
+
+  let primaryAction: React.ReactNode = null;
+  if (currentNode) {
+    const label = currentNode.name;
+    if (currentNode.node_type === 'production_step' && currentNode.status === 'pending') {
+      primaryAction = canStep ? (
+        <Button onClick={() => setActionModal({ kind: 'production', type: 'start', nodeKey: currentNode.node_key, scrapTypes })}>
+          <Play size={15} /> Start {label}
+        </Button>
+      ) : (
+        <span className="text-sm text-[var(--ink-muted)] italic">Waiting on Production to start {label}</span>
+      );
+    } else if (currentNode.node_type === 'production_step' && currentNode.status === 'in_progress') {
+      primaryAction = canStep ? (
+        <Button onClick={() => setActionModal({ kind: 'production', type: 'complete', nodeKey: currentNode.node_key, scrapTypes })}>
+          <CheckCircle size={15} /> Complete {label}
+        </Button>
+      ) : (
+        <span className="text-sm text-[var(--ink-muted)] italic">Waiting on Production to complete {label}</span>
+      );
+    } else if (currentNode.node_type === 'approval') {
+      const requiredRole = (currentNode.config as ApprovalConfig)?.required_role;
+      primaryAction = canApprove ? (
+        <div className="flex gap-2">
+          <Button onClick={() => setActionModal({ kind: 'approval', decision: 'approved', nodeKey: currentNode.node_key })}>
+            <Check size={15} /> Approve {label}
+          </Button>
+          <Button variant="danger" onClick={() => setActionModal({ kind: 'approval', decision: 'rejected', nodeKey: currentNode.node_key })}>
+            <X size={15} /> Reject
+          </Button>
+        </div>
+      ) : (
+        <span className="text-sm text-[var(--ink-muted)] italic">
+          Waiting on {requiredRole ? ROLE_LABELS[requiredRole] : 'an approver'} to review {label}
+        </span>
+      );
+    } else if (currentNode.node_type === 'quality_check') {
+      primaryAction = canSubmitQuality ? (
+        <div className="flex gap-2">
+          <Button onClick={() => setActionModal({ kind: 'quality', result: 'pass', nodeKey: currentNode.node_key })}>
+            <CheckCircle size={15} /> Pass {label}
+          </Button>
+          <Button variant="danger" onClick={() => setActionModal({ kind: 'quality', result: 'fail', nodeKey: currentNode.node_key })}>
+            <XCircle size={15} /> Fail
+          </Button>
+        </div>
+      ) : (
+        <span className="text-sm text-[var(--ink-muted)] italic">Waiting on quality inspection for {label}</span>
+      );
+    }
+  }
+
   return (
     <AppShell>
       <PageHeader
@@ -126,9 +200,12 @@ export default function LotDetailPage() {
           { label: lot.lot_number },
         ]}
         action={
-          <Badge variant={lotStatusBadge(lot.status)} className="text-sm px-3 py-1">
-            {LOT_STATUS_LABELS[lot.status] || lot.status}
-          </Badge>
+          <div className="flex items-center gap-3">
+            {primaryAction}
+            <Badge variant={lotStatusBadge(lot.status)} className="text-sm px-3 py-1">
+              {LOT_STATUS_LABELS[lot.status] || lot.status}
+            </Badge>
+          </div>
         }
       />
 
@@ -234,14 +311,7 @@ export default function LotDetailPage() {
 
               const accentColor = NODE_TYPE_COLORS[nodeType];
               const isOptional = nodeType === 'production_step' && !!SKIPPABLE_STEPS[nodeKey];
-              // A custom workflow-template node's own config.allowed_scrap_types is the source of
-              // truth -- STEP_SCRAP_TYPES is a fallback only for the legacy fixed six steps that
-              // predate the config field, never a ceiling on what a custom template can allow.
-              const scrapTypes = nodeType === 'production_step'
-                ? ((node.config as ProductionStepConfig)?.allowed_scrap_types?.length
-                    ? (node.config as ProductionStepConfig).allowed_scrap_types
-                    : STEP_SCRAP_TYPES[nodeKey] || [])
-                : [];
+              const scrapTypes = resolveScrapTypes(nodeType, nodeKey, node.config);
               const hasScrapTypes = scrapTypes.length > 0;
               const isCurrent = graph?.current_node_key === nodeKey;
               const instance = node.instance;
@@ -360,112 +430,61 @@ export default function LotDetailPage() {
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {/* Start/Complete/Approve/Reject/Pass/Fail for the CURRENT node live in the
+                      page-header primary action above, not duplicated here -- everything below
+                      is secondary: available on this row regardless of whether it's the current
+                      node (scrap/override/analytics), or an alternate path to the same current
+                      node the header doesn't offer (skip), all labeled rather than icon-only. */}
+                  <div className="flex items-center gap-1.5 flex-wrap flex-shrink-0">
                     <Badge variant={stepStatusBadge(status)}>{STEP_STATUS_LABELS[status] || status}</Badge>
 
                     {nodeType === 'production_step' && (
                       <>
-                        {status === 'pending' && canStep && isCurrent && (
-                          <button
-                            onClick={() => setActionModal({ kind: 'production', type: 'start', nodeKey, scrapTypes })}
-                            className="text-blue-600 hover:text-blue-800 p-1 rounded"
-                            title="Start step"
-                          >
-                            <Play size={13} />
-                          </button>
-                        )}
-                        {status === 'in_progress' && canStep && isCurrent && (
-                          <button
-                            onClick={() => setActionModal({ kind: 'production', type: 'complete', nodeKey, scrapTypes })}
-                            className="text-green-600 hover:text-green-800 p-1 rounded"
-                            title="Complete step"
-                          >
-                            <CheckCircle size={13} />
-                          </button>
-                        )}
                         {(status === 'in_progress' || status === 'completed') && canScrap && hasScrapTypes && (
-                          <button
+                          <Button
+                            size="sm"
+                            variant="outline"
                             onClick={() => setActionModal({ kind: 'production', type: 'scrap', nodeKey, scrapTypes })}
-                            className="text-amber-600 hover:text-amber-800 p-1 rounded"
-                            title="Record scrap"
                           >
-                            <AlertTriangle size={13} />
-                          </button>
+                            <AlertTriangle size={13} /> Record Scrap
+                          </Button>
                         )}
                         {status === 'in_progress' && canConsumable && isCurrent && (
-                          <button
+                          <Button
+                            size="sm"
+                            variant="outline"
                             onClick={() => setActionModal({ kind: 'production', type: 'consumable', nodeKey, scrapTypes })}
-                            className="text-purple-600 hover:text-purple-800 p-1 rounded"
-                            title="Record consumable usage"
                           >
-                            <Package size={13} />
-                          </button>
+                            <Package size={13} /> Log Usage
+                          </Button>
                         )}
                         {status === 'pending' && isOptional && canSkip && isCurrent && (
-                          <button
+                          <Button
+                            size="sm"
+                            variant="outline"
                             onClick={() => setActionModal({ kind: 'production', type: 'skip', nodeKey, scrapTypes })}
-                            className="text-amber-600 hover:text-amber-800 p-1 rounded"
-                            title="Skip step"
                           >
-                            <SkipForward size={13} />
-                          </button>
+                            <SkipForward size={13} /> Skip
+                          </Button>
                         )}
                         {status === 'completed' && canOverride && (
-                          <button
+                          <Button
+                            size="sm"
+                            variant="outline"
                             onClick={() => setActionModal({ kind: 'production', type: 'override', nodeKey, scrapTypes })}
-                            className="text-blue-600 hover:text-blue-800 p-1 rounded"
-                            title="Override recorded quantities"
                           >
-                            <Pencil size={13} />
-                          </button>
+                            <Pencil size={13} /> Override
+                          </Button>
                         )}
                         {status !== 'pending' && canAnalytics && (
-                          <button
+                          <Button
+                            size="sm"
+                            variant="ghost"
                             onClick={() => setActionModal({ kind: 'production', type: 'analytics', nodeKey, scrapTypes })}
-                            className="text-[var(--ink-muted)] hover:text-[var(--ink)] p-1 rounded"
-                            title="View step detail"
                           >
-                            <BarChart3 size={13} />
-                          </button>
+                            <BarChart3 size={13} /> Details
+                          </Button>
                         )}
-                      </>
-                    )}
-
-                    {nodeType === 'approval' && isCurrent && canApprove && (
-                      <>
-                        <button
-                          onClick={() => setActionModal({ kind: 'approval', decision: 'approved', nodeKey })}
-                          className="text-green-600 hover:text-green-800 p-1 rounded"
-                          title="Approve"
-                        >
-                          <Check size={13} />
-                        </button>
-                        <button
-                          onClick={() => setActionModal({ kind: 'approval', decision: 'rejected', nodeKey })}
-                          className="text-red-600 hover:text-red-800 p-1 rounded"
-                          title="Reject"
-                        >
-                          <X size={13} />
-                        </button>
-                      </>
-                    )}
-
-                    {nodeType === 'quality_check' && isCurrent && canSubmitQuality && (
-                      <>
-                        <button
-                          onClick={() => setActionModal({ kind: 'quality', result: 'pass', nodeKey })}
-                          className="text-green-600 hover:text-green-800 p-1 rounded"
-                          title="Pass"
-                        >
-                          <CheckCircle size={13} />
-                        </button>
-                        <button
-                          onClick={() => setActionModal({ kind: 'quality', result: 'fail', nodeKey })}
-                          className="text-red-600 hover:text-red-800 p-1 rounded"
-                          title="Fail"
-                        >
-                          <XCircle size={13} />
-                        </button>
                       </>
                     )}
                   </div>
