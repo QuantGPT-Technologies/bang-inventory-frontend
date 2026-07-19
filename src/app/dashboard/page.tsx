@@ -10,6 +10,7 @@ import { Batch, Lot } from '@/lib/types';
 import { Factory, Layers, AlertTriangle, TrendingUp, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
+import { TaskQueue } from '@/components/dashboard/TaskQueue';
 
 export default function DashboardPage() {
   const [summary, setSummary] = useState<{
@@ -53,8 +54,8 @@ export default function DashboardPage() {
   return (
     <AppShell>
       <PageHeader
-        title="Production Dashboard"
-        subtitle={`Overview · ${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}`}
+        title="Home"
+        subtitle={new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
       />
 
       {partialFailure && !loading && (
@@ -65,6 +66,13 @@ export default function DashboardPage() {
           </Button>
         </div>
       )}
+
+      {/* The primary content: every actionable workflow step across the whole plant, in one
+          place -- this is the "what do I do next" answer the app didn't have before. Everything
+          below (stats, recent activity) is secondary/browse-oriented context. */}
+      <div className="mb-6">
+        <TaskQueue />
+      </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">

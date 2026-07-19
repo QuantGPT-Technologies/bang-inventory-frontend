@@ -1,0 +1,97 @@
+'use client';
+import { useRouter } from 'next/navigation';
+import { Card } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
+import Button from '@/components/ui/Button';
+import { attentionApi } from '@/lib/api';
+import { AttentionItem, AttentionList } from '@/lib/types';
+import { formatDateTime, ROLE_LABELS, verbForNodeType } from '@/lib/utils';
+import { useAsyncQuery } from '@/lib/useAsync';
+import { NODE_TYPE_ICONS, NODE_TYPE_COLORS } from '@/components/workflow/workflowNodeMeta';
+import { CheckCircle2, ArrowRight } from 'lucide-react';
+
+const EMPTY: AttentionList = { items: [] };
+
+/**
+ * The Home screen's task queue -- the single "what do I do next" view this app didn't have
+ * before: every actionable workflow step across every lot/batch, in one place, as big
+ * plain-language cards instead of something an operator had to know to go find on a specific
+ * lot's detail page. Reads from GET /attention (see AttentionService on the backend), the one
+ * source this queue, the Insights dashboard's alert tiles, and (later) a notification indicator
+ * all render from.
+ *
+ * Tapping a `can_act` card's button lands on the lot/batch detail page, which (since the lot
+ * detail page's own primary-action header redesign) already shows the exact same action as its
+ * one dominant call-to-action -- no separate deep-link/auto-open plumbing needed here.
+ */
+export function TaskQueue() {
+  const fetchAttention = async () => {
+    const res = await attentionApi.list();
+    return (res.data?.data as AttentionList) ?? EMPTY;
+  };
+
+  const { data, loading, error } = useAsyncQuery(fetchAttention, [], EMPTY);
+  const items = data.items;
+
+  return (
+    <Card title="What Needs Attention" noPadding>
+      {loading ? (
+        <div className="p-5 text-center text-sm text-[var(--ink-muted)]">Loading…</div>
+      ) : error ? (
+        <div className="p-5 text-center text-sm text-red-600">Couldn&apos;t load your task queue.</div>
+      ) : items.length === 0 ? (
+        <div className="p-8 text-center gap-2 flex flex-col items-center">
+          <CheckCircle2 size={28} className="text-green-600" />
+          <p className="text-sm text-[var(--ink-muted)]">Nothing needs your attention right now — nice work.</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-[var(--border-light)]">
+          {items.map((item, i) => (
+            <TaskCard key={`${item.entity_type}-${item.lot_id ?? item.batch_id}-${item.node_key}-${i}`} item={item} />
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function TaskCard({ item }: { item: AttentionItem }) {
+  const router = useRouter();
+  const Icon = NODE_TYPE_ICONS[item.node_type];
+  const color = NODE_TYPE_COLORS[item.node_type];
+  const entityLabel = item.entity_type === 'lot'
+    ? `Lot ${item.lot_number ?? item.lot_id}`
+    : `Batch ${item.batch_number ?? item.batch_id}`;
+  const href = item.entity_type === 'lot' ? `/lots/${item.lot_id}` : `/batches/${item.batch_id}`;
+  const verb = verbForNodeType(item.node_type, item.status);
+
+  return (
+    <div
+      className="flex items-center gap-3 px-4 py-3 hover:bg-[var(--paper-dark)] transition-colors cursor-pointer"
+      onClick={() => router.push(href)}
+    >
+      <div
+        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+        style={{ backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)`, color }}
+      >
+        <Icon size={16} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-[var(--ink)] truncate">
+          {verb} {item.node_name} — {entityLabel}
+          {item.sku_code && <span className="text-[var(--ink-muted)] font-normal"> · {item.sku_code}</span>}
+        </p>
+        <p className="text-xs text-[var(--ink-muted)]">Waiting since {formatDateTime(item.waiting_since)}</p>
+      </div>
+      {item.can_act ? (
+        <Button size="sm" onClick={() => router.push(href)}>
+          {verb} <ArrowRight size={13} />
+        </Button>
+      ) : (
+        <Badge variant="muted">
+          Waiting on {item.waiting_on_role ? ROLE_LABELS[item.waiting_on_role] : 'someone else'}
+        </Badge>
+      )}
+    </div>
+  );
+}

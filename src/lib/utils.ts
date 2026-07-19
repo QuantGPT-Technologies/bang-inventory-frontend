@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import type { WorkflowNodeType } from './types';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -87,6 +88,21 @@ export const STEP_STATUS_LABELS: Record<string, string> = {
   completed: 'Completed',
   skipped: 'Skipped',
 };
+
+/** Plain-language verb for "what do I do to this attention item" -- shared by the Home task
+ * queue and anywhere else a workflow node's next action needs a one-word label. */
+export function verbForNodeType(nodeType: WorkflowNodeType, status: 'pending' | 'in_progress'): string {
+  switch (nodeType) {
+    case 'production_step':
+      return status === 'in_progress' ? 'Complete' : 'Start';
+    case 'approval':
+      return 'Review';
+    case 'quality_check':
+      return 'Inspect';
+    default:
+      return 'Handle';
+  }
+}
 
 export const ROLE_LABELS: Record<string, string> = {
   admin: 'Administrator',
