@@ -2,7 +2,7 @@
 import { Panel } from '@xyflow/react';
 import { X } from 'lucide-react';
 import { Badge, stepStatusBadge } from '@/components/ui/Badge';
-import { formatDateTime, formatQty } from '@/lib/utils';
+import { formatDateTime, formatQty, STEP_STATUS_LABELS } from '@/lib/utils';
 import { LotWorkflowGraphNode } from '@/lib/types';
 import { NODE_TYPE_LABELS } from '../workflowNodeMeta';
 
@@ -26,7 +26,7 @@ export function NodeDetailPanel({ node, onClose }: { node: LotWorkflowGraphNode;
           </button>
         </div>
 
-        <Badge variant={stepStatusBadge(node.status)}>{node.status.replace('_', ' ')}</Badge>
+        <Badge variant={stepStatusBadge(node.status)}>{STEP_STATUS_LABELS[node.status] || node.status}</Badge>
 
         {inst ? (
           <dl className="mt-2 space-y-1">

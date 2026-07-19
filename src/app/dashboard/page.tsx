@@ -5,7 +5,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, StatCard } from '@/components/ui/Card';
 import { Badge, batchStatusBadge, lotStatusBadge } from '@/components/ui/Badge';
 import { reportsApi, batchesApi, lotsApi } from '@/lib/api';
-import { formatDate, formatQty, BATCH_STATUS_LABELS, STEP_LABELS } from '@/lib/utils';
+import { formatDate, formatQty, BATCH_STATUS_LABELS, STEP_LABELS, LOT_STATUS_LABELS } from '@/lib/utils';
 import { Batch, Lot } from '@/lib/types';
 import { Factory, Layers, AlertTriangle, TrendingUp, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
@@ -162,7 +162,7 @@ export default function DashboardPage() {
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-1">
-                    <Badge variant={lotStatusBadge(l.status)}>{l.status}</Badge>
+                    <Badge variant={lotStatusBadge(l.status)}>{LOT_STATUS_LABELS[l.status] || l.status}</Badge>
                     {l.current_step && (
                       <span className="text-xs text-[var(--ink-muted)]">
                         {STEP_LABELS[l.current_step]}

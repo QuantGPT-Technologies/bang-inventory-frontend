@@ -11,7 +11,7 @@ import Select from '@/components/ui/Select';
 import { toast } from '@/components/ui/Toast';
 import { lotsApi } from '@/lib/api';
 import { Lot, PaginatedResponse } from '@/lib/types';
-import { formatDate, formatQty, STEP_LABELS } from '@/lib/utils';
+import { formatDate, formatQty, STEP_LABELS, LOT_STATUS_LABELS } from '@/lib/utils';
 import { useAsyncQuery } from '@/lib/useAsync';
 
 const PER_PAGE = 20;
@@ -67,7 +67,7 @@ export default function LotsPage() {
       key: 'status',
       header: 'Status',
       render: (row: Lot) => (
-        <Badge variant={lotStatusBadge(row.status)}>{row.status}</Badge>
+        <Badge variant={lotStatusBadge(row.status)}>{LOT_STATUS_LABELS[row.status] || row.status}</Badge>
       ),
     },
     { key: 'created_at', header: 'Created', render: (row: Lot) => formatDate(row.created_at) },

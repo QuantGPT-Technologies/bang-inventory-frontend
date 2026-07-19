@@ -9,7 +9,7 @@ import Textarea from '@/components/ui/Textarea';
 import { toast } from '@/components/ui/Toast';
 import { lotsApi } from '@/lib/api';
 import { Lot, LotStep, Consumable } from '@/lib/types';
-import { formatDateTime, formatQty, getNodeLabel, STEP_SCRAP_TYPES, SKIPPABLE_STEPS, parseApiError } from '@/lib/utils';
+import { formatDateTime, formatQty, getNodeLabel, STEP_SCRAP_TYPES, SKIPPABLE_STEPS, STEP_STATUS_LABELS, parseApiError } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import { startStepSchema, completeStepSchema, overrideStepSchema, scrapSchema, consumableUsageSchema, validate, toNumber, INTEGER_UNITS, type FieldErrors } from '@/lib/validation';
@@ -387,7 +387,7 @@ function ProductionStepAnalyticsView({ loading, error, data }: { loading: boolea
     <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-1">
       <DetailSection title="Overview">
         <dl className="space-y-1.5 text-sm">
-          <DL label="Status"><Badge variant={stepStatusBadge(data.status)}>{data.status}</Badge></DL>
+          <DL label="Status"><Badge variant={stepStatusBadge(data.status)}>{STEP_STATUS_LABELS[data.status] || data.status}</Badge></DL>
           {data.machine_name && <DL label="Machine">{data.machine_name}</DL>}
           {data.operator_name && <DL label="Operator">{data.operator_name}</DL>}
           <DL label="Started">{formatDateTime(data.started_at ?? undefined)}</DL>

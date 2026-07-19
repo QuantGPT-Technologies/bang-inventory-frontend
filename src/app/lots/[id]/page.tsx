@@ -9,7 +9,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { toast } from '@/components/ui/Toast';
 import { lotsApi, consumablesApi } from '@/lib/api';
 import { Lot, Consumable, WorkflowNodeType, LotWorkflowGraph } from '@/lib/types';
-import { cn, formatDateTime, formatQty, getNodeLabel, STEP_SCRAP_TYPES, SKIPPABLE_STEPS } from '@/lib/utils';
+import { cn, formatDateTime, formatQty, getNodeLabel, STEP_SCRAP_TYPES, SKIPPABLE_STEPS, LOT_STATUS_LABELS, STEP_STATUS_LABELS } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import { useAsyncQuery } from '@/lib/useAsync';
@@ -127,7 +127,7 @@ export default function LotDetailPage() {
         ]}
         action={
           <Badge variant={lotStatusBadge(lot.status)} className="text-sm px-3 py-1">
-            {lot.status}
+            {LOT_STATUS_LABELS[lot.status] || lot.status}
           </Badge>
         }
       />
@@ -251,7 +251,9 @@ export default function LotDetailPage() {
                     'flex items-center gap-3 rounded-md px-3 py-3 border transition-colors',
                     status === 'completed' && 'bg-green-50 border-green-200',
                     status === 'in_progress' && 'bg-blue-50 border-blue-200',
-                    status === 'skipped' && 'bg-amber-50 border-amber-200',
+                    // Amber is reserved app-wide for "needs action" -- skipped is a benign
+                    // bypass, so it gets a neutral treatment, distinct from pending only by shade.
+                    status === 'skipped' && 'bg-[var(--paper-darker)] border-[var(--border)]',
                     status === 'pending' && 'bg-[var(--paper-dark)] border-[var(--border-light)]',
                     // Louder highlight for the one row that's actually actionable right now:
                     // a thicker, node-type-accented left border on top of the ordinary status
@@ -264,7 +266,7 @@ export default function LotDetailPage() {
                     'w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0',
                     status === 'completed' && 'bg-green-600 text-white',
                     status === 'in_progress' && 'bg-blue-600 text-white',
-                    status === 'skipped' && 'bg-amber-500 text-white',
+                    status === 'skipped' && 'bg-[var(--ink-muted)] text-white',
                     status === 'pending' && 'bg-[var(--border)] text-[var(--ink-muted)]',
                   )}>
                     {idx + 1}
@@ -351,7 +353,7 @@ export default function LotDetailPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <Badge variant={stepStatusBadge(status)}>{status}</Badge>
+                    <Badge variant={stepStatusBadge(status)}>{STEP_STATUS_LABELS[status] || status}</Badge>
 
                     {nodeType === 'production_step' && (
                       <>

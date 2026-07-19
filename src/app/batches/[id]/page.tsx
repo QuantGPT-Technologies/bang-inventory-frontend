@@ -13,7 +13,7 @@ import Select from '@/components/ui/Select';
 import { toast } from '@/components/ui/Toast';
 import { batchesApi, skusApi } from '@/lib/api';
 import { Batch, SKU, BatchWorkflowDetail } from '@/lib/types';
-import { formatDateTime, formatQty, BATCH_STATUS_LABELS, getNodeLabel, parseApiError } from '@/lib/utils';
+import { formatDateTime, formatQty, BATCH_STATUS_LABELS, LOT_STATUS_LABELS, STEP_STATUS_LABELS, getNodeLabel, parseApiError } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import {
@@ -221,7 +221,7 @@ export default function BatchDetailPage() {
                       <div className="flex items-center gap-2 px-3 py-2 rounded-md border border-[var(--border-light)] bg-[var(--paper)]">
                         <Icon size={14} style={{ color }} className="flex-shrink-0" />
                         <span className="text-sm font-medium text-[var(--ink)]">{getNodeLabel(node.node_key)}</span>
-                        <Badge variant={stepStatusBadge(node.status)}>{node.status.replace('_', ' ')}</Badge>
+                        <Badge variant={stepStatusBadge(node.status)}>{STEP_STATUS_LABELS[node.status] || node.status}</Badge>
                       </div>
                       {i < workflow.nodes.length - 1 && (
                         <ArrowRight size={14} className="text-[var(--ink-muted)] flex-shrink-0" />
@@ -249,7 +249,7 @@ export default function BatchDetailPage() {
                             {cl.current_node_key ? getNodeLabel(cl.current_node_key) : '—'}
                           </span>
                         </div>
-                        <Badge variant={lotStatusBadge(cl.status)}>{cl.status.replace('_', ' ')}</Badge>
+                        <Badge variant={lotStatusBadge(cl.status)}>{LOT_STATUS_LABELS[cl.status] || cl.status}</Badge>
                       </Link>
                     ))}
                   </div>
@@ -276,9 +276,9 @@ export default function BatchDetailPage() {
                   </div>
                   <div className="flex items-center gap-3">
                     {lot.current_step && (
-                      <span className="text-xs text-[var(--ink-muted)]">{lot.current_step}</span>
+                      <span className="text-xs text-[var(--ink-muted)]">{getNodeLabel(lot.current_step)}</span>
                     )}
-                    <Badge variant={lotStatusBadge(lot.status)}>{lot.status}</Badge>
+                    <Badge variant={lotStatusBadge(lot.status)}>{LOT_STATUS_LABELS[lot.status] || lot.status}</Badge>
                     <ArrowRight size={14} className="text-[var(--ink-muted)]" />
                   </div>
                 </Link>

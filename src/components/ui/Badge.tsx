@@ -32,11 +32,16 @@ export function Badge({ children, variant = 'default', className }: BadgeProps) 
 }
 
 export function stepStatusBadge(status: string) {
+  // 'warning' (amber) is reserved app-wide for "a human needs to act on this now" -- a skipped
+  // step is the opposite, a benign bypass, so it maps to 'muted' like an unstarted step rather
+  // than colliding with e.g. a blended batch (batchStatusBadge below) that genuinely needs
+  // someone to act next.
   const map: Record<string, BadgeVariant> = {
+    not_started: 'muted',
     pending: 'muted',
     in_progress: 'info',
     completed: 'success',
-    skipped: 'warning',
+    skipped: 'muted',
   };
   return map[status] || 'default';
 }

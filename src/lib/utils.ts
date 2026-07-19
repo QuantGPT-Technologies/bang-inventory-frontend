@@ -73,6 +73,21 @@ export const BATCH_STATUS_LABELS: Record<string, string> = {
   completed: 'Completed',
 };
 
+export const LOT_STATUS_LABELS: Record<string, string> = {
+  created: 'Created',
+  in_progress: 'In Progress',
+  completed: 'Completed',
+};
+
+/** Covers both LotStep.status and WorkflowNodeInstance/LotWorkflowGraph node status. */
+export const STEP_STATUS_LABELS: Record<string, string> = {
+  not_started: 'Not Started',
+  pending: 'Pending',
+  in_progress: 'In Progress',
+  completed: 'Completed',
+  skipped: 'Skipped',
+};
+
 export const ROLE_LABELS: Record<string, string> = {
   admin: 'Administrator',
   manager: 'Manager',

@@ -95,7 +95,10 @@ export function ExecutionNodeShell({
           </span>
         )}
         {isSkipped && (
-          <span className="inline-block text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+          // Amber is reserved app-wide for "needs action" (see the Current pill above, and
+          // Badge.tsx's stepStatusBadge) -- a skipped step is a benign bypass, not a task, so it
+          // gets the same neutral treatment as a not-started node instead.
+          <span className="inline-block text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--paper-darker)] text-[var(--ink-muted)]">
             Skipped
           </span>
         )}
@@ -123,7 +126,7 @@ function StatusIcon({ status, accentColor }: { status: ExecutionNodeStatus; acce
     case 'completed':
       return <CheckCircle2 size={14} className="flex-shrink-0 text-green-600" />;
     case 'skipped':
-      return <SkipForward size={14} className="flex-shrink-0 text-amber-500" />;
+      return <SkipForward size={14} className="flex-shrink-0 text-[var(--ink-muted)]" />;
     case 'in_progress':
       return <Loader2 size={14} className="flex-shrink-0 animate-spin" style={{ color: accentColor }} />;
     case 'pending':
