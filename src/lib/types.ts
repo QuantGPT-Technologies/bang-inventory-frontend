@@ -488,6 +488,36 @@ export interface WebhookDelivery {
   delivered_at: string;
 }
 
+/**
+ * GET /attention response item -- the single "what needs a human's attention right now" shape
+ * behind the Home task queue and (later) dashboard/notification surfaces. `kind` is
+ * "workflow_step" today (an actionable production_step/approval/quality_check current node);
+ * later phases add more kinds (low stock, failed webhook deliveries) without changing this
+ * shape. `can_act`/`waiting_on_role` are computed server-side from the same role rules the
+ * underlying action endpoints already enforce -- never trust this to grant an action the
+ * endpoint itself would reject, it's presentation-only.
+ */
+export interface AttentionItem {
+  kind: 'workflow_step';
+  entity_type: 'lot' | 'batch';
+  lot_id?: number;
+  lot_number?: string;
+  batch_id?: number;
+  batch_number?: string;
+  sku_code?: string;
+  node_key: string;
+  node_type: WorkflowNodeType;
+  node_name: string;
+  status: 'pending' | 'in_progress';
+  waiting_since: string;
+  can_act: boolean;
+  waiting_on_role?: string;
+}
+
+export interface AttentionList {
+  items: AttentionItem[];
+}
+
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;

@@ -191,3 +191,9 @@ export const reportsApi = {
   trends: (params?: object) =>
     api.get('/reports/trends', { params }),
 };
+
+// The single "what needs attention right now" source -- backs the Home task queue and (later)
+// dashboard/notification surfaces.
+export const attentionApi = {
+  list: () => api.get('/attention'),
+};
