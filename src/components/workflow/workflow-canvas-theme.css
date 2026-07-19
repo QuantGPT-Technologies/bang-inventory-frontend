@@ -1,0 +1,92 @@
+/**
+ * Paper/ink theme overrides for the workflow canvas editor.
+ *
+ * React Flow ships its own visual language (light grey dotted background, blue selection/
+ * connection colors, generic sans-serif) via `@xyflow/react/dist/style.css`. Rather than fighting
+ * that stylesheet's specificity, this file uses React Flow's public CSS custom-property theming
+ * hooks (the `--xy-*` variables each rule reads, see node_modules/@xyflow/react/dist/style.css)
+ * scoped to `.react-flow` so the overrides can't leak into any other page's styling.
+ *
+ * Import this AFTER '@xyflow/react/dist/style.css' in WorkflowCanvas.tsx so these declarations
+ * win the cascade.
+ */
+
+.react-flow {
+  /* Canvas background: swap RF's default transparent-over-white for the app's paper tone, and
+     the dot pattern's default blue-grey for a muted ink tone so it reads as texture, not chrome. */
+  --xy-background-color: var(--paper);
+  --xy-background-pattern-color: var(--border);
+
+  /* Edges: replace RF's default near-black stroke with the app's border tone at rest, and its
+     default blue "selected" stroke / connection-drag stroke with --accent. */
+  --xy-edge-stroke: var(--border);
+  --xy-edge-stroke-width: 1.5;
+  --xy-edge-stroke-selected: var(--accent);
+  --xy-connectionline-stroke: var(--accent-light);
+  --xy-connectionline-stroke-width: 1.5;
+
+  /* Edge label chip (used when LabeledEdge falls back to RF's own text renderer). */
+  --xy-edge-label-background-color: var(--paper);
+  --xy-edge-label-color: var(--ink-light);
+
+  /* Marquee selection box: RF default is a blue wash; use the app's accent-muted fill. */
+  --xy-selection-background-color: var(--accent-muted);
+  --xy-selection-border: 1px dotted var(--accent);
+
+  /* Handles: BaseNodeShell already sets bg/border per handle inline (paper fill, per-node-type
+     accent border) -- these vars are a fallback for any handle rendered without that inline
+     styling (e.g. mid-connection-drag indicator). */
+  --xy-handle-background-color: var(--paper);
+  --xy-handle-border-color: var(--ink-muted);
+
+  /* Controls (zoom/fit) panel: swap RF's default white/blue-grey chrome for paper/ink. */
+  --xy-controls-button-background-color: var(--paper);
+  --xy-controls-button-background-color-hover: var(--accent-muted);
+  --xy-controls-button-color: var(--ink-light);
+  --xy-controls-button-color-hover: var(--accent);
+  --xy-controls-button-border-color: var(--border-light);
+  --xy-controls-box-shadow: 0 1px 4px var(--shadow);
+}
+
+/* Dots read as a subtle paper grain rather than a stark technical grid. */
+.react-flow__background-pattern.dots {
+  opacity: 0.6;
+}
+
+/* Give the controls panel the same rounded/bordered card treatment as the rest of the app
+   instead of RF's flat white square. */
+.react-flow__controls {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+}
+
+.react-flow__controls-button:disabled svg {
+  fill-opacity: 0.35;
+}
+
+/* Every handle in the editor is rendered by BaseNodeShell with an inline per-node-type border
+   color (see nodes/BaseNodeShell.tsx) on a --paper fill. Against --paper, the lightest of those
+   accents (--gold) sits under WCAG's 3:1 non-text-contrast threshold on its own -- add a thin
+   ink-muted ring outside the colored border so every handle keeps a consistent, legible silhouette
+   regardless of which node type owns it. */
+.react-flow__handle {
+  box-shadow: 0 0 0 1px var(--ink-muted);
+}
+
+.react-flow__handle:hover,
+.react-flow__handle.connectingfrom,
+.react-flow__handle.connectionindicator {
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+
+/* RF's attribution watermark defaults to a semi-opaque white pill; make it blend with paper
+   instead of standing out as a foreign chip. */
+.react-flow__attribution {
+  background: var(--paper);
+  color: var(--ink-muted);
+}
+
+.react-flow__attribution a {
+  color: var(--ink-muted);
+}

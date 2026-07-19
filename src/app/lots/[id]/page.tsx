@@ -5,28 +5,35 @@ import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Badge, stepStatusBadge, lotStatusBadge } from '@/components/ui/Badge';
-import { Modal } from '@/components/ui/Modal';
 import { ErrorState } from '@/components/ui/ErrorState';
-import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
-import Select from '@/components/ui/Select';
-import Textarea from '@/components/ui/Textarea';
 import { toast } from '@/components/ui/Toast';
 import { lotsApi, consumablesApi } from '@/lib/api';
-import { Lot, LotStep, StepName, Consumable } from '@/lib/types';
-import { formatDateTime, formatQty, STEP_ORDER, STEP_LABELS, STEP_SCRAP_TYPES, SKIPPABLE_STEPS, parseApiError } from '@/lib/utils';
+import { Lot, Consumable, WorkflowNodeType, LotWorkflowGraph } from '@/lib/types';
+import { cn, formatDateTime, formatQty, getNodeLabel, STEP_SCRAP_TYPES, SKIPPABLE_STEPS } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
-import { startStepSchema, completeStepSchema, overrideStepSchema, scrapSchema, consumableUsageSchema, validate, toNumber, INTEGER_UNITS, type FieldErrors } from '@/lib/validation';
 import { useAsyncQuery } from '@/lib/useAsync';
-import { Play, CheckCircle, SkipForward, AlertTriangle, Package, Pencil, BarChart3 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { NODE_TYPE_ICONS, NODE_TYPE_COLORS, NODE_TYPE_LABELS, withAlpha } from '@/components/workflow/workflowNodeMeta';
+import { LotWorkflowCanvas } from '@/components/workflow/execution/LotWorkflowCanvas';
+import { DL } from '@/components/lots/DL';
+import { ProductionStepActionModal, type ProductionActionType } from '@/components/lots/ProductionStepActionModal';
+import { ApprovalActionModal } from '@/components/lots/ApprovalActionModal';
+import { QualityCheckActionModal } from '@/components/lots/QualityCheckActionModal';
+import { Play, CheckCircle, SkipForward, AlertTriangle, Package, Pencil, BarChart3, Check, X, XCircle, List, Workflow } from 'lucide-react';
+
+type PipelineView = 'list' | 'graph';
+
+type ActionModalState =
+  | { kind: 'production'; type: ProductionActionType | string; nodeKey: string }
+  | { kind: 'approval'; decision: 'approved' | 'rejected'; nodeKey: string }
+  | { kind: 'quality'; result: 'pass' | 'fail'; nodeKey: string };
 
 export default function LotDetailPage() {
   const params = useParams<{ id: string }>();
   const { user } = useAuthStore();
-  const [actionModal, setActionModal] = useState<{ type: string; step: StepName } | null>(null);
+  const [actionModal, setActionModal] = useState<ActionModalState | null>(null);
   const [consumables, setConsumables] = useState<Consumable[]>([]);
+  const [pipelineView, setPipelineView] = useState<PipelineView>('list');
 
   const idParam = params?.id;
   const lotId = Number(idParam);
@@ -40,9 +47,30 @@ export default function LotDetailPage() {
 
   const { data: lot, loading, error, reload } = useAsyncQuery<Lot | null>(fetchLot, [lotId, idIsValid], null);
 
+  // Fetched unconditionally (not lazily on first switch to Graph view) so toggling is instant --
+  // same rationale as the unconditional consumables fetch below, and this payload is small (one
+  // template's worth of nodes/edges). Both views read from `lot`/`graph` independently but both
+  // reload after every mutation (see the action modals' onDone below) so they never drift apart.
+  const fetchGraph = useCallback(async () => {
+    if (!idIsValid) return null;
+    const res = await lotsApi.getGraph(lotId);
+    return res.data?.data ?? null;
+  }, [lotId, idIsValid]);
+
+  const { data: graph, loading: graphLoading, error: graphError, reload: reloadGraph } = useAsyncQuery<LotWorkflowGraph | null>(
+    fetchGraph,
+    [lotId, idIsValid],
+    null
+  );
+
   useEffect(() => {
     if (error && !error.isNotFound) toast.error(error.message);
   }, [error]);
+
+  const reloadAll = useCallback(() => {
+    reload();
+    reloadGraph();
+  }, [reload, reloadGraph]);
 
   useEffect(() => {
     consumablesApi.list(1, 100).then((r) => setConsumables(r.data.data?.items || [])).catch(() => {
@@ -68,19 +96,26 @@ export default function LotDetailPage() {
   const canAnalytics = canAccess(user, 'lots', 'analytics');
   const canScrap = canAccess(user, 'lots', 'scrap');
   const canConsumable = canAccess(user, 'lots', 'consumable');
-
-  const getStepByName = (name: string) => lot.steps?.find((s) => s.step_name === name);
-
-  /** A step can be started only if every prior step in STEP_ORDER is completed or skipped. */
-  const isStepUnlocked = (idx: number): boolean => {
-    for (let i = 0; i < idx; i++) {
-      const prior = getStepByName(STEP_ORDER[i]);
-      if (!prior || (prior.status !== 'completed' && prior.status !== 'skipped')) return false;
-    }
-    return true;
-  };
+  const canApprove = canAccess(user, 'lots', 'approve');
+  const canSubmitQuality = canAccess(user, 'lots', 'quality_result');
 
   const lotIsTerminal = lot.status === 'completed';
+
+  // List view now sources from the SAME full-graph data (`graph.nodes`, GET /lots/:id/graph) as
+  // the Graph view, instead of `lot.steps` (which the backend only lazy-appends a row for once a
+  // node is actually visited -- so a fresh lot's `steps` array has just one row and every
+  // not-yet-reached node was invisible, the bug this fixes). `graph.nodes` always contains every
+  // template node (`status: 'not_started'` for ones not yet reached), sorted by the designer's
+  // intended display order (`sequence_hint`). The "current, actionable" node is read directly off
+  // `graph.current_node_key` (explicit from the backend) instead of inferred from array position.
+  //
+  // GetLotWorkflowGraph (backend, internal/service/workflow_service.go) does NOT run the
+  // variance/scrap-entries enrichment that GetLotWorkflowDetail (backing `lot.steps`) does --
+  // graph.nodes[i].instance.variance and .scrap_entries are always empty. `lot.steps` (still
+  // fetched -- the action modals look up their node from it by key) has both, so supplement from
+  // there by node_key for whichever node the instance has actually reached.
+  const stepsByNodeKey = new Map((lot.steps || []).flatMap((s) => (s.node_key ? [[s.node_key, s] as const] : [])));
+  const sortedNodes = graph ? [...graph.nodes].sort((a, b) => (a.sequence_hint ?? 0) - (b.sequence_hint ?? 0)) : [];
 
   return (
     <AppShell>
@@ -105,36 +140,125 @@ export default function LotDetailPage() {
             <DL label="Batch"><span className="font-mono text-[var(--accent)]">{lot.batch_number || `#${lot.batch_id}`}</span></DL>
             <DL label="SKU">{lot.sku_code || `#${lot.sku_id}`}</DL>
             <DL label="Quantity">{formatQty(lot.quantity, lot.unit)}</DL>
-            {lot.current_step && <DL label="Current Step">{STEP_LABELS[lot.current_step]}</DL>}
+            {lot.current_step && <DL label="Current Step">{getNodeLabel(lot.current_step)}</DL>}
             <DL label="Created">{formatDateTime(lot.created_at)}</DL>
           </dl>
         </Card>
 
         {/* Pipeline */}
-        <Card title="Production Pipeline" className="lg:col-span-2">
+        <Card
+          title="Production Pipeline"
+          className="lg:col-span-2"
+          action={
+            <div className="flex items-center gap-0.5 rounded-md border border-[var(--border-light)] p-0.5">
+              <button
+                onClick={() => setPipelineView('list')}
+                className={cn(
+                  'flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors',
+                  pipelineView === 'list'
+                    ? 'bg-[var(--accent)] text-[var(--paper)]'
+                    : 'text-[var(--ink-muted)] hover:bg-[var(--paper-dark)]'
+                )}
+                title="List view"
+              >
+                <List size={13} /> List
+              </button>
+              <button
+                onClick={() => setPipelineView('graph')}
+                className={cn(
+                  'flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors',
+                  pipelineView === 'graph'
+                    ? 'bg-[var(--accent)] text-[var(--paper)]'
+                    : 'text-[var(--ink-muted)] hover:bg-[var(--paper-dark)]'
+                )}
+                title="Graph view"
+              >
+                <Workflow size={13} /> Graph
+              </button>
+            </div>
+          }
+        >
           {lotIsTerminal && (
             <div className="mb-3 text-xs text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
               This lot has completed all production steps.
             </div>
           )}
+
+          {pipelineView === 'graph' ? (
+            <div className="h-[520px] w-full rounded-md border border-[var(--border-light)] overflow-hidden">
+              {graphLoading && (
+                <div className="h-full flex items-center justify-center text-sm text-[var(--ink-muted)]">Loading graph…</div>
+              )}
+              {!graphLoading && graphError && (
+                <div className="h-full flex items-center justify-center text-sm text-red-600">Failed to load workflow graph.</div>
+              )}
+              {!graphLoading && !graphError && graph && <LotWorkflowCanvas graph={graph} />}
+            </div>
+          ) : (
           <div className="space-y-2">
-            {STEP_ORDER.map((stepName, idx) => {
-              const step = getStepByName(stepName);
-              const status = step?.status || 'pending';
-              const isOptional = !!SKIPPABLE_STEPS[stepName];
-              const unlocked = isStepUnlocked(idx);
-              const hasScrapTypes = (STEP_SCRAP_TYPES[stepName] || []).length > 0;
+            {graphLoading && (
+              <p className="text-sm text-[var(--ink-muted)] italic">Loading pipeline…</p>
+            )}
+            {!graphLoading && graphError && (
+              <p className="text-sm text-red-600">Failed to load workflow graph.</p>
+            )}
+            {!graphLoading && !graphError && sortedNodes.length === 0 && (
+              <p className="text-sm text-[var(--ink-muted)] italic">No workflow steps recorded yet.</p>
+            )}
+            {!graphLoading && !graphError && sortedNodes.map((node, idx) => {
+              const nodeType: WorkflowNodeType = node.node_type;
+              const nodeKey = node.node_key;
+              const status = node.status;
+              const Icon = NODE_TYPE_ICONS[nodeType];
+
+              // Not-yet-reached node: no instance exists yet, so there's nothing to show beyond
+              // identity -- render a simplified, muted row with no actions and no qty/timestamp detail.
+              if (status === 'not_started') {
+                return (
+                  <div
+                    key={nodeKey}
+                    className="flex items-center gap-3 rounded-md px-3 py-3 border border-[var(--border-light)] bg-[var(--paper-dark)] opacity-60"
+                  >
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 bg-[var(--border)] text-[var(--ink-muted)]">
+                      {idx + 1}
+                    </div>
+                    <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+                      <Icon size={13} className="flex-shrink-0 text-[var(--ink-muted)]" />
+                      <span className="text-sm font-medium text-[var(--ink-muted)]">{node.name}</span>
+                      <span className="text-[10px] text-[var(--ink-muted)] uppercase tracking-wide">{NODE_TYPE_LABELS[nodeType]}</span>
+                    </div>
+                    <Badge variant="muted">Not started</Badge>
+                  </div>
+                );
+              }
+
+              const accentColor = NODE_TYPE_COLORS[nodeType];
+              const isOptional = nodeType === 'production_step' && !!SKIPPABLE_STEPS[nodeKey];
+              const hasScrapTypes = nodeType === 'production_step' && (STEP_SCRAP_TYPES[nodeKey] || []).length > 0;
+              const isCurrent = graph?.current_node_key === nodeKey;
+              const instance = node.instance;
+              // See the stepsByNodeKey comment above: graph.nodes[i].instance never carries
+              // variance/scrap_entries (the latter isn't even on the WorkflowNodeInstance TS
+              // shape -- it's an LotStep-only field), so supplement from the matching lot.steps row.
+              const legacyStep = stepsByNodeKey.get(nodeKey);
+              const variance = legacyStep?.variance ?? instance?.variance ?? null;
+              const scrapEntries = legacyStep?.scrap_entries;
 
               return (
                 <div
-                  key={stepName}
+                  key={nodeKey}
                   className={cn(
                     'flex items-center gap-3 rounded-md px-3 py-3 border transition-colors',
                     status === 'completed' && 'bg-green-50 border-green-200',
                     status === 'in_progress' && 'bg-blue-50 border-blue-200',
                     status === 'skipped' && 'bg-amber-50 border-amber-200',
                     status === 'pending' && 'bg-[var(--paper-dark)] border-[var(--border-light)]',
+                    // Louder highlight for the one row that's actually actionable right now:
+                    // a thicker, node-type-accented left border on top of the ordinary status
+                    // coloring (see the "Current Step" pill below for the other half of this).
+                    isCurrent && 'border-l-4 shadow-sm',
                   )}
+                  style={isCurrent ? { borderLeftColor: accentColor } : undefined}
                 >
                   <div className={cn(
                     'w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0',
@@ -145,595 +269,232 @@ export default function LotDetailPage() {
                   )}>
                     {idx + 1}
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{STEP_LABELS[stepName]}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Icon size={13} style={{ color: accentColor }} className="flex-shrink-0" />
+                      <span className="text-sm font-medium">{node.name}</span>
+                      <span className="text-[10px] text-[var(--ink-muted)] uppercase tracking-wide">{NODE_TYPE_LABELS[nodeType]}</span>
                       {isOptional && (
                         <span className="text-[10px] text-[var(--ink-muted)] uppercase tracking-wide">optional</span>
                       )}
-                    </div>
-                    {step && (
-                      <div className="flex gap-3 text-xs text-[var(--ink-muted)] mt-0.5">
-                        {step.machine_name && <span>Machine: {step.machine_name}</span>}
-                        {step.actual_input_qty != null && <span>In: {formatQty(step.actual_input_qty, step.input_unit)}</span>}
-                        {step.actual_output_qty != null && <span>Out: {formatQty(step.actual_output_qty, step.output_unit)}</span>}
-                        {step.started_at && <span>{formatDateTime(step.started_at)}</span>}
-                      </div>
-                    )}
-                    {step?.variance && (
-                      <div className="flex gap-2 mt-1 flex-wrap text-[10px]">
-                        <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
-                          Yield: {step.variance.yield_pct.toFixed(1)}%
+                      {isCurrent && (
+                        <span
+                          className="inline-flex items-center text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded animate-pulse"
+                          style={{ backgroundColor: withAlpha(accentColor, 18), color: accentColor }}
+                        >
+                          Current Step
                         </span>
-                        {step.variance.total_scrap > 0 && (
-                          <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded">
-                            Scrap: {formatQty(step.variance.total_scrap, step.variance.scrap_unit)}
-                          </span>
+                      )}
+                    </div>
+
+                    {/* production_step meta: machine/qty/timing + variance + scrap entries */}
+                    {nodeType === 'production_step' && (
+                      <>
+                        <div className="flex gap-3 text-xs text-[var(--ink-muted)] mt-0.5 flex-wrap">
+                          {instance?.machine_name && <span>Machine: {instance.machine_name}</span>}
+                          {instance?.actual_input_qty != null && <span>In: {formatQty(instance.actual_input_qty, instance.input_unit)}</span>}
+                          {instance?.actual_output_qty != null && <span>Out: {formatQty(instance.actual_output_qty, instance.output_unit)}</span>}
+                          {instance?.started_at && <span>{formatDateTime(instance.started_at)}</span>}
+                        </div>
+                        {variance && (
+                          <div className="flex gap-2 mt-1 flex-wrap text-[10px]">
+                            <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+                              Yield: {variance.yield_pct.toFixed(1)}%
+                            </span>
+                            {variance.total_scrap > 0 && (
+                              <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded">
+                                Scrap: {formatQty(variance.total_scrap, variance.scrap_unit)}
+                              </span>
+                            )}
+                          </div>
                         )}
-                      </div>
+                        {scrapEntries && scrapEntries.length > 0 && (
+                          <div className="flex gap-2 mt-1 flex-wrap">
+                            {scrapEntries.map((se) => (
+                              <span key={se.id} className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded">
+                                {se.scrap_type}: {formatQty(se.quantity, se.unit)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </>
                     )}
-                    {step?.scrap_entries && step.scrap_entries.length > 0 && (
-                      <div className="flex gap-2 mt-1 flex-wrap">
-                        {step.scrap_entries.map((se) => (
-                          <span key={se.id} className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded">
-                            {se.scrap_type}: {formatQty(se.quantity, se.unit)}
-                          </span>
-                        ))}
-                      </div>
+
+                    {/* approval / quality_check meta: who decided, when, why, and (quality_check
+                        only) the free-form measurements captured at submission time */}
+                    {(nodeType === 'approval' || nodeType === 'quality_check') && (
+                      <>
+                        <div className="flex gap-3 text-xs text-[var(--ink-muted)] mt-0.5 flex-wrap">
+                          {instance?.outcome && <span>Outcome: {instance.outcome}</span>}
+                          {instance?.decided_at && <span>{formatDateTime(instance.decided_at)}</span>}
+                        </div>
+                        {instance?.decision_reason && (
+                          <p className="text-xs text-[var(--ink-muted)] mt-0.5 italic">&ldquo;{instance.decision_reason}&rdquo;</p>
+                        )}
+                        {nodeType === 'quality_check' && instance?.data && Object.keys(instance.data).length > 0 && (
+                          <div className="flex gap-2 mt-1 flex-wrap">
+                            {Object.entries(instance.data).map(([k, v]) => (
+                              <span key={k} className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+                                {k}: {String(v)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* conditional_branch: inert row, no actions ever */}
+                    {nodeType === 'conditional_branch' && (
+                      <p className="text-xs text-[var(--ink-muted)] mt-0.5">
+                        {instance?.outcome ? `→ ${instance.outcome}` : 'Pending evaluation'}
+                      </p>
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     <Badge variant={stepStatusBadge(status)}>{status}</Badge>
-                    {/* Actions */}
-                    {status === 'pending' && canStep && unlocked && (
-                      <button
-                        onClick={() => setActionModal({ type: 'start', step: stepName })}
-                        className="text-blue-600 hover:text-blue-800 p-1 rounded"
-                        title="Start step"
-                      >
-                        <Play size={13} />
-                      </button>
+
+                    {nodeType === 'production_step' && (
+                      <>
+                        {status === 'pending' && canStep && isCurrent && (
+                          <button
+                            onClick={() => setActionModal({ kind: 'production', type: 'start', nodeKey })}
+                            className="text-blue-600 hover:text-blue-800 p-1 rounded"
+                            title="Start step"
+                          >
+                            <Play size={13} />
+                          </button>
+                        )}
+                        {status === 'in_progress' && canStep && isCurrent && (
+                          <button
+                            onClick={() => setActionModal({ kind: 'production', type: 'complete', nodeKey })}
+                            className="text-green-600 hover:text-green-800 p-1 rounded"
+                            title="Complete step"
+                          >
+                            <CheckCircle size={13} />
+                          </button>
+                        )}
+                        {(status === 'in_progress' || status === 'completed') && canScrap && hasScrapTypes && (
+                          <button
+                            onClick={() => setActionModal({ kind: 'production', type: 'scrap', nodeKey })}
+                            className="text-amber-600 hover:text-amber-800 p-1 rounded"
+                            title="Record scrap"
+                          >
+                            <AlertTriangle size={13} />
+                          </button>
+                        )}
+                        {status === 'in_progress' && canConsumable && isCurrent && (
+                          <button
+                            onClick={() => setActionModal({ kind: 'production', type: 'consumable', nodeKey })}
+                            className="text-purple-600 hover:text-purple-800 p-1 rounded"
+                            title="Record consumable usage"
+                          >
+                            <Package size={13} />
+                          </button>
+                        )}
+                        {status === 'pending' && isOptional && canSkip && isCurrent && (
+                          <button
+                            onClick={() => setActionModal({ kind: 'production', type: 'skip', nodeKey })}
+                            className="text-amber-600 hover:text-amber-800 p-1 rounded"
+                            title="Skip step"
+                          >
+                            <SkipForward size={13} />
+                          </button>
+                        )}
+                        {status === 'completed' && canOverride && (
+                          <button
+                            onClick={() => setActionModal({ kind: 'production', type: 'override', nodeKey })}
+                            className="text-blue-600 hover:text-blue-800 p-1 rounded"
+                            title="Override recorded quantities"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                        )}
+                        {status !== 'pending' && canAnalytics && (
+                          <button
+                            onClick={() => setActionModal({ kind: 'production', type: 'analytics', nodeKey })}
+                            className="text-[var(--ink-muted)] hover:text-[var(--ink)] p-1 rounded"
+                            title="View step detail"
+                          >
+                            <BarChart3 size={13} />
+                          </button>
+                        )}
+                      </>
                     )}
-                    {status === 'in_progress' && canStep && (
-                      <button
-                        onClick={() => setActionModal({ type: 'complete', step: stepName })}
-                        className="text-green-600 hover:text-green-800 p-1 rounded"
-                        title="Complete step"
-                      >
-                        <CheckCircle size={13} />
-                      </button>
+
+                    {nodeType === 'approval' && isCurrent && canApprove && (
+                      <>
+                        <button
+                          onClick={() => setActionModal({ kind: 'approval', decision: 'approved', nodeKey })}
+                          className="text-green-600 hover:text-green-800 p-1 rounded"
+                          title="Approve"
+                        >
+                          <Check size={13} />
+                        </button>
+                        <button
+                          onClick={() => setActionModal({ kind: 'approval', decision: 'rejected', nodeKey })}
+                          className="text-red-600 hover:text-red-800 p-1 rounded"
+                          title="Reject"
+                        >
+                          <X size={13} />
+                        </button>
+                      </>
                     )}
-                    {(status === 'in_progress' || status === 'completed') && canScrap && hasScrapTypes && (
-                      <button
-                        onClick={() => setActionModal({ type: 'scrap', step: stepName })}
-                        className="text-amber-600 hover:text-amber-800 p-1 rounded"
-                        title="Record scrap"
-                      >
-                        <AlertTriangle size={13} />
-                      </button>
-                    )}
-                    {status === 'in_progress' && canConsumable && (
-                      <button
-                        onClick={() => setActionModal({ type: 'consumable', step: stepName })}
-                        className="text-purple-600 hover:text-purple-800 p-1 rounded"
-                        title="Record consumable usage"
-                      >
-                        <Package size={13} />
-                      </button>
-                    )}
-                    {status === 'pending' && isOptional && canSkip && unlocked && (
-                      <button
-                        onClick={() => setActionModal({ type: 'skip', step: stepName })}
-                        className="text-amber-600 hover:text-amber-800 p-1 rounded"
-                        title="Skip step"
-                      >
-                        <SkipForward size={13} />
-                      </button>
-                    )}
-                    {status === 'completed' && canOverride && (
-                      <button
-                        onClick={() => setActionModal({ type: 'override', step: stepName })}
-                        className="text-blue-600 hover:text-blue-800 p-1 rounded"
-                        title="Override recorded quantities"
-                      >
-                        <Pencil size={13} />
-                      </button>
-                    )}
-                    {status !== 'pending' && canAnalytics && (
-                      <button
-                        onClick={() => setActionModal({ type: 'analytics', step: stepName })}
-                        className="text-[var(--ink-muted)] hover:text-[var(--ink)] p-1 rounded"
-                        title="View step detail"
-                      >
-                        <BarChart3 size={13} />
-                      </button>
+
+                    {nodeType === 'quality_check' && isCurrent && canSubmitQuality && (
+                      <>
+                        <button
+                          onClick={() => setActionModal({ kind: 'quality', result: 'pass', nodeKey })}
+                          className="text-green-600 hover:text-green-800 p-1 rounded"
+                          title="Pass"
+                        >
+                          <CheckCircle size={13} />
+                        </button>
+                        <button
+                          onClick={() => setActionModal({ kind: 'quality', result: 'fail', nodeKey })}
+                          className="text-red-600 hover:text-red-800 p-1 rounded"
+                          title="Fail"
+                        >
+                          <XCircle size={13} />
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
               );
             })}
           </div>
+          )}
         </Card>
       </div>
 
-      {actionModal && (
-        <StepActionModal
+      {actionModal?.kind === 'production' && (
+        <ProductionStepActionModal
           lot={lot}
           actionType={actionModal.type}
-          stepName={actionModal.step}
+          nodeKey={actionModal.nodeKey}
           consumables={consumables}
           onClose={() => setActionModal(null)}
-          onDone={() => { setActionModal(null); reload(); }}
+          onDone={() => { setActionModal(null); reloadAll(); }}
+        />
+      )}
+      {actionModal?.kind === 'approval' && (
+        <ApprovalActionModal
+          lot={lot}
+          nodeKey={actionModal.nodeKey}
+          decision={actionModal.decision}
+          onClose={() => setActionModal(null)}
+          onDone={() => { setActionModal(null); reloadAll(); }}
+        />
+      )}
+      {actionModal?.kind === 'quality' && (
+        <QualityCheckActionModal
+          lot={lot}
+          nodeKey={actionModal.nodeKey}
+          initialResult={actionModal.result}
+          onClose={() => setActionModal(null)}
+          onDone={() => { setActionModal(null); reloadAll(); }}
         />
       )}
     </AppShell>
-  );
-}
-
-/** Discrete-count units (e.g. "pcs") only accept whole numbers; everything else allows 3 decimals. */
-function qtyStepAttr(unit?: string): string {
-  return unit && INTEGER_UNITS.has(unit) ? '1' : '0.001';
-}
-
-function qtyPlaceholder(unit?: string): string {
-  return unit && INTEGER_UNITS.has(unit) ? '0' : '0.000';
-}
-
-function DL({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-start justify-between gap-2">
-      <dt className="text-xs uppercase tracking-wide text-[var(--ink-muted)] flex-shrink-0">{label}</dt>
-      <dd className="text-right text-sm">{children}</dd>
-    </div>
-  );
-}
-
-function StepActionModal({
-  lot,
-  actionType,
-  stepName,
-  consumables,
-  onClose,
-  onDone,
-}: {
-  lot: Lot;
-  actionType: string;
-  stepName: StepName;
-  consumables: Consumable[];
-  onClose: () => void;
-  onDone: () => void;
-}) {
-  const currentStep = lot.steps?.find((s) => s.step_name === stepName);
-
-  const [startMachineName, setStartMachineName] = useState('');
-  const [inputQty, setInputQty] = useState(String(currentStep?.expected_input_qty ?? ''));
-  const [outputQty, setOutputQty] = useState(String(currentStep?.expected_output_qty ?? ''));
-  const [machineName, setMachineName] = useState(currentStep?.machine_name ?? '');
-  const [notes, setNotes] = useState('');
-  const [overrideInputQty, setOverrideInputQty] = useState(String(currentStep?.actual_input_qty ?? ''));
-  const [overrideOutputQty, setOverrideOutputQty] = useState(String(currentStep?.actual_output_qty ?? ''));
-  // Intentionally starts blank (not prefilled from currentStep.notes) — it's the mandatory
-  // reason for *this* override, not a continuation of the step's original completion notes.
-  const [overrideNotes, setOverrideNotes] = useState('');
-  const [scrapType, setScrapType] = useState('');
-  const [scrapQty, setScrapQty] = useState('');
-  const [scrapUnit, setScrapUnit] = useState('kg');
-  const [consumableId, setConsumableId] = useState<number>(0);
-  const [consumableQty, setConsumableQty] = useState('');
-  const [consumableUnit, setConsumableUnit] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<FieldErrors>({});
-  const [analytics, setAnalytics] = useState<LotStep | null>(null);
-  const [analyticsLoading, setAnalyticsLoading] = useState(false);
-  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
-
-  const scrapTypes = STEP_SCRAP_TYPES[stepName] || [];
-  const noConsumablesAvailable = consumables.length === 0;
-  const selectedConsumable = consumables.find((c) => c.id === consumableId);
-
-  const titles: Record<string, string> = {
-    start: `Start ${STEP_LABELS[stepName]}`,
-    complete: `Complete ${STEP_LABELS[stepName]}`,
-    skip: `Skip ${STEP_LABELS[stepName]}`,
-    override: `Override — ${STEP_LABELS[stepName]}`,
-    analytics: `Step Detail — ${STEP_LABELS[stepName]}`,
-    scrap: `Record Scrap — ${STEP_LABELS[stepName]}`,
-    consumable: `Record Consumable Usage`,
-  };
-
-  useEffect(() => {
-    if (actionType !== 'analytics') return;
-    let cancelled = false;
-    (async () => {
-      setAnalyticsLoading(true);
-      setAnalyticsError(null);
-      try {
-        const res = await lotsApi.getAnalytics(lot.id, stepName);
-        if (!cancelled) setAnalytics(res.data?.data ?? null);
-      } catch (err) {
-        if (!cancelled) setAnalyticsError(parseApiError(err).message);
-      } finally {
-        if (!cancelled) setAnalyticsLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [actionType, lot.id, stepName]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (loading) return;
-
-    try {
-      switch (actionType) {
-        case 'start': {
-          const result = validate(startStepSchema, { machine_name: startMachineName });
-          if (!result.success) {
-            setErrors(result.errors);
-            toast.error(Object.values(result.errors)[0] || 'Please correct the highlighted fields.');
-            return;
-          }
-          setErrors({});
-          setLoading(true);
-          await lotsApi.startStep(lot.id, stepName, { machine_name: result.data.machine_name || undefined });
-          toast.success('Step started');
-          onDone();
-          break;
-        }
-        case 'complete': {
-          const payload = {
-            actual_input_qty: toNumber(inputQty),
-            actual_output_qty: toNumber(outputQty),
-            machine_name: machineName,
-            notes,
-          };
-          const result = validate(completeStepSchema(currentStep?.input_unit, currentStep?.output_unit), payload);
-          if (!result.success) {
-            setErrors(result.errors);
-            toast.error(Object.values(result.errors)[0] || 'Please correct the highlighted fields.');
-            return;
-          }
-          setErrors({});
-          setLoading(true);
-          await lotsApi.completeStep(lot.id, stepName, {
-            actual_input_qty: result.data.actual_input_qty,
-            actual_output_qty: result.data.actual_output_qty,
-            machine_name: result.data.machine_name || undefined,
-            notes: result.data.notes || undefined,
-          });
-          toast.success('Step completed');
-          onDone();
-          break;
-        }
-        case 'skip': {
-          if (!SKIPPABLE_STEPS[stepName]) {
-            toast.error(`The ${STEP_LABELS[stepName]} step cannot be skipped.`);
-            return;
-          }
-          setLoading(true);
-          await lotsApi.skipStep(lot.id, stepName);
-          toast.success('Step skipped');
-          onDone();
-          break;
-        }
-        case 'override': {
-          const payload = {
-            actual_input_qty: overrideInputQty !== '' ? toNumber(overrideInputQty) : undefined,
-            actual_output_qty: overrideOutputQty !== '' ? toNumber(overrideOutputQty) : undefined,
-            notes: overrideNotes,
-          };
-          const result = validate(overrideStepSchema(currentStep?.input_unit, currentStep?.output_unit), payload);
-          if (!result.success) {
-            setErrors(result.errors);
-            toast.error(Object.values(result.errors)[0] || 'Please correct the highlighted fields.');
-            return;
-          }
-          setErrors({});
-          setLoading(true);
-          await lotsApi.updateStep(lot.id, stepName, result.data);
-          toast.success('Step updated');
-          onDone();
-          break;
-        }
-        case 'analytics': {
-          // Read-only view; nothing to submit.
-          onClose();
-          break;
-        }
-        case 'scrap': {
-          const schema = scrapSchema(stepName, scrapUnit);
-          const payload = { scrap_type: scrapType, quantity: toNumber(scrapQty), unit: scrapUnit, notes };
-          const result = validate(schema, payload);
-          if (!result.success) {
-            setErrors(result.errors);
-            toast.error(Object.values(result.errors)[0] || 'Please correct the highlighted fields.');
-            return;
-          }
-          setErrors({});
-          setLoading(true);
-          await lotsApi.recordScrap(lot.id, stepName, {
-            scrap_type: result.data.scrap_type,
-            quantity: result.data.quantity,
-            unit: result.data.unit || undefined,
-            notes: result.data.notes || undefined,
-          });
-          toast.success('Scrap recorded');
-          onDone();
-          break;
-        }
-        case 'consumable': {
-          if (noConsumablesAvailable) {
-            toast.error('No consumables are configured. Create one under Consumables first.');
-            return;
-          }
-          const payload = { consumable_id: consumableId, quantity: toNumber(consumableQty), unit: consumableUnit || selectedConsumable?.unit || '' };
-          const result = validate(consumableUsageSchema, payload);
-          if (!result.success) {
-            setErrors(result.errors);
-            toast.error(Object.values(result.errors)[0] || 'Please correct the highlighted fields.');
-            return;
-          }
-          if (selectedConsumable && result.data.quantity > selectedConsumable.current_stock) {
-            setErrors({ quantity: `Only ${formatQty(selectedConsumable.current_stock, selectedConsumable.unit)} in stock` });
-            toast.error('Requested quantity exceeds available stock.');
-            return;
-          }
-          setErrors({});
-          setLoading(true);
-          await lotsApi.recordConsumable(lot.id, stepName, result.data);
-          toast.success('Consumable usage recorded');
-          onDone();
-          break;
-        }
-      }
-    } catch (err) {
-      const info = parseApiError(err);
-      toast.error(info.message);
-      if (info.isConflict || info.isNotFound) onDone();
-      if (info.fieldErrors) setErrors((prev) => ({ ...prev, ...info.fieldErrors }));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Modal open onClose={onClose} title={titles[actionType] || 'Confirm'} size={actionType === 'analytics' ? 'xl' : 'sm'}
-      footer={
-        actionType === 'analytics' ? (
-          <Button variant="ghost" onClick={onClose}>Close</Button>
-        ) : (
-          <>
-            <Button variant="ghost" onClick={onClose} disabled={loading}>Cancel</Button>
-            <Button loading={loading} disabled={loading} onClick={handleSubmit as unknown as React.MouseEventHandler}>Confirm</Button>
-          </>
-        )
-      }
-    >
-      <form onSubmit={handleSubmit} className="space-y-3">
-        {actionType === 'complete' && (
-          <>
-            <Input label={`Actual Input Qty (${currentStep?.input_unit || lot.unit || 'unit'})`} type="number" step={qtyStepAttr(currentStep?.input_unit)} min="0" value={inputQty} onChange={(e) => setInputQty(e.target.value)} error={errors.actual_input_qty} placeholder={qtyPlaceholder(currentStep?.input_unit)} />
-            <Input label={`Actual Output Qty (${currentStep?.output_unit || lot.unit || 'unit'})`} type="number" step={qtyStepAttr(currentStep?.output_unit)} min="0" value={outputQty} onChange={(e) => setOutputQty(e.target.value)} error={errors.actual_output_qty} placeholder={qtyPlaceholder(currentStep?.output_unit)} />
-            <Input label="Machine Name" value={machineName} onChange={(e) => setMachineName(e.target.value)} placeholder="Press-A1" maxLength={100} />
-            <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} maxLength={1000} />
-          </>
-        )}
-        {actionType === 'start' && (
-          <>
-            <p className="text-sm text-[var(--ink-muted)] mb-3">
-              Start the <strong>{STEP_LABELS[stepName]}</strong> step for lot <strong>{lot.lot_number}</strong>?
-            </p>
-            <Input label="Machine Name (optional)" value={startMachineName} onChange={(e) => setStartMachineName(e.target.value)} error={errors.machine_name} placeholder="Press-A1" maxLength={100} />
-          </>
-        )}
-        {actionType === 'skip' && (
-          <p className="text-sm text-[var(--ink-muted)]">
-            Skip the <strong>{STEP_LABELS[stepName]}</strong> step for lot <strong>{lot.lot_number}</strong>? This cannot be undone.
-          </p>
-        )}
-        {actionType === 'override' && (
-          <>
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mb-1">
-              This overwrites the recorded quantities for a completed step. Leave a quantity field blank to keep its current value. A reason is required.
-            </p>
-            <Input label={`Actual Input Qty (${currentStep?.input_unit || lot.unit || 'unit'})`} type="number" step={qtyStepAttr(currentStep?.input_unit)} min="0" value={overrideInputQty} onChange={(e) => setOverrideInputQty(e.target.value)} error={errors.actual_input_qty} placeholder={qtyPlaceholder(currentStep?.input_unit)} />
-            <Input label={`Actual Output Qty (${currentStep?.output_unit || lot.unit || 'unit'})`} type="number" step={qtyStepAttr(currentStep?.output_unit)} min="0" value={overrideOutputQty} onChange={(e) => setOverrideOutputQty(e.target.value)} error={errors.actual_output_qty} placeholder={qtyPlaceholder(currentStep?.output_unit)} />
-            <Textarea label="Reason for Change" value={overrideNotes} onChange={(e) => setOverrideNotes(e.target.value)} error={errors.notes} rows={2} maxLength={1000} placeholder="e.g. Corrected after physical recount" />
-          </>
-        )}
-        {actionType === 'analytics' && (
-          <StepAnalyticsView loading={analyticsLoading} error={analyticsError} data={analytics} />
-        )}
-        {actionType === 'scrap' && (
-          <>
-            {scrapTypes.length === 0 ? (
-              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
-                The {STEP_LABELS[stepName]} step does not allow scrap entries.
-              </p>
-            ) : (
-              <>
-                <Select
-                  label="Scrap Type"
-                  options={scrapTypes.map((t) => ({ value: t, label: t.replace('_', ' ') }))}
-                  value={scrapType}
-                  onChange={(e) => setScrapType(e.target.value)}
-                  placeholder="Select type…"
-                  error={errors.scrap_type}
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <Input label="Quantity" type="number" step={qtyStepAttr(scrapUnit)} min="0" value={scrapQty} onChange={(e) => setScrapQty(e.target.value)} error={errors.quantity} />
-                  <Select label="Unit" options={[{ value: 'kg', label: 'kg' }, { value: 'pcs', label: 'pcs' }, { value: 'g', label: 'g' }]} value={scrapUnit} onChange={(e) => setScrapUnit(e.target.value)} placeholder="" />
-                </div>
-                <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} maxLength={1000} />
-              </>
-            )}
-          </>
-        )}
-        {actionType === 'consumable' && (
-          <>
-            {noConsumablesAvailable ? (
-              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
-                No consumables are configured yet.
-              </p>
-            ) : (
-              <>
-                <Select
-                  label="Consumable"
-                  options={consumables.map((c) => ({ value: c.id, label: `${c.name} (${c.unit}) — ${c.current_stock} in stock` }))}
-                  value={consumableId || ''}
-                  onChange={(e) => setConsumableId(Number(e.target.value))}
-                  placeholder="Select consumable…"
-                  error={errors.consumable_id}
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <Input
-                    label="Quantity"
-                    type="number" step="0.001" min="0"
-                    value={consumableQty}
-                    onChange={(e) => setConsumableQty(e.target.value)}
-                    error={errors.quantity}
-                    hint={selectedConsumable ? `${formatQty(selectedConsumable.current_stock, selectedConsumable.unit)} in stock` : undefined}
-                  />
-                  <Input
-                    label="Unit"
-                    value={consumableUnit}
-                    onChange={(e) => setConsumableUnit(e.target.value)}
-                    error={errors.unit}
-                    placeholder={selectedConsumable?.unit || 'unit'}
-                  />
-                </div>
-              </>
-            )}
-          </>
-        )}
-      </form>
-    </Modal>
-  );
-}
-
-function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-2">
-      <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--ink-muted)]">{title}</h4>
-      {children}
-    </div>
-  );
-}
-
-function StepAnalyticsView({ loading, error, data }: { loading: boolean; error: string | null; data: LotStep | null }) {
-  const { user } = useAuthStore();
-  // Only the roles that can actually perform an override (see `canOverride` above) get to
-  // see who corrected a step and why — the backend also strips this for other roles, so
-  // this just avoids showing a misleading "no corrections" empty state to everyone else.
-  const canViewOverrideHistory = canAccess(user, 'lots', 'override');
-
-  if (loading) return <p className="text-sm text-[var(--ink-muted)] text-center py-4">Loading…</p>;
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
-  if (!data) return <p className="text-sm text-[var(--ink-muted)] italic">No detail available for this step yet.</p>;
-
-  const v = data.variance;
-
-  return (
-    <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-1">
-      <DetailSection title="Overview">
-        <dl className="space-y-1.5 text-sm">
-          <DL label="Status"><Badge variant={stepStatusBadge(data.status)}>{data.status}</Badge></DL>
-          {data.machine_name && <DL label="Machine">{data.machine_name}</DL>}
-          {data.operator_name && <DL label="Operator">{data.operator_name}</DL>}
-          <DL label="Started">{formatDateTime(data.started_at ?? undefined)}</DL>
-          <DL label="Completed">{formatDateTime(data.completed_at ?? undefined)}</DL>
-          {data.notes && <DL label="Notes">{data.notes}</DL>}
-        </dl>
-      </DetailSection>
-
-      <DetailSection title="Quantities">
-        <dl className="space-y-1.5 text-sm">
-          <DL label="Expected Input">{formatQty(data.expected_input_qty ?? undefined, data.input_unit)}</DL>
-          <DL label="Actual Input">{formatQty(data.actual_input_qty ?? undefined, data.input_unit)}</DL>
-          <DL label="Expected Output">{formatQty(data.expected_output_qty ?? undefined, data.output_unit)}</DL>
-          <DL label="Actual Output">{formatQty(data.actual_output_qty ?? undefined, data.output_unit)}</DL>
-          {v && (
-            <>
-              <DL label="Input Variance">{v.input_diff.toFixed(3)} ({v.input_diff_pct.toFixed(1)}%)</DL>
-              <DL label="Output Variance">{v.output_diff.toFixed(3)} ({v.output_diff_pct.toFixed(1)}%)</DL>
-              <DL label="Yield">{v.yield_pct.toFixed(1)}%</DL>
-              <DL label="Total Scrap">{formatQty(v.total_scrap, v.scrap_unit)}</DL>
-            </>
-          )}
-        </dl>
-      </DetailSection>
-
-      <DetailSection title={`Scrap Entries${data.scrap_entries?.length ? ` (${data.scrap_entries.length})` : ''}`}>
-        {!data.scrap_entries?.length ? (
-          <p className="text-sm text-[var(--ink-muted)] italic">No scrap recorded for this step.</p>
-        ) : (
-          <div className="border border-[var(--border-light)] rounded-md divide-y divide-[var(--border-light)]">
-            {data.scrap_entries.map((se) => (
-              <div key={se.id} className="px-3 py-2 text-sm flex items-center justify-between gap-2">
-                <div>
-                  <span className="font-medium">{se.scrap_type.replace('_', ' ')}</span>
-                  <span className="text-[var(--ink-muted)]"> — {formatQty(se.quantity, se.unit)}</span>
-                  {se.notes && <p className="text-xs text-[var(--ink-muted)]">{se.notes}</p>}
-                </div>
-                <div className="text-right text-xs text-[var(--ink-muted)] flex-shrink-0">
-                  {se.recorded_by_name && <div>{se.recorded_by_name}</div>}
-                  <div>{formatDateTime(se.created_at)}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </DetailSection>
-
-      <DetailSection title={`Consumables Used${data.consumable_usages?.length ? ` (${data.consumable_usages.length})` : ''}`}>
-        {!data.consumable_usages?.length ? (
-          <p className="text-sm text-[var(--ink-muted)] italic">No consumables recorded for this step.</p>
-        ) : (
-          <div className="border border-[var(--border-light)] rounded-md divide-y divide-[var(--border-light)]">
-            {data.consumable_usages.map((cu) => (
-              <div key={cu.id} className="px-3 py-2 text-sm flex items-center justify-between gap-2">
-                <span className="font-medium">{cu.consumable_name}</span>
-                <div className="text-right text-xs text-[var(--ink-muted)] flex-shrink-0">
-                  <div className="text-sm text-[var(--ink)] font-mono">{formatQty(cu.quantity, cu.unit)}</div>
-                  <div>{formatDateTime(cu.created_at)}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </DetailSection>
-
-      {canViewOverrideHistory && (
-        <DetailSection title={`Override History${data.override_history?.length ? ` (${data.override_history.length})` : ''}`}>
-          {!data.override_history?.length ? (
-            <p className="text-sm text-[var(--ink-muted)] italic">No manual corrections have been made to this step.</p>
-          ) : (
-            <div className="border border-[var(--border-light)] rounded-md divide-y divide-[var(--border-light)]">
-              {data.override_history.map((o) => (
-                <div key={o.id} className="px-3 py-2 text-sm space-y-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-[var(--ink-muted)]">
-                      {o.changed_by_name || 'Unknown'} · {formatDateTime(o.created_at)}
-                    </span>
-                  </div>
-                  {(o.previous_input_qty != null || o.new_input_qty != null) && (
-                    <div className="text-xs">
-                      Input: <span className="font-mono">{o.previous_input_qty ?? '—'}</span> → <span className="font-mono font-semibold">{o.new_input_qty ?? '—'}</span> {data.input_unit}
-                    </div>
-                  )}
-                  {(o.previous_output_qty != null || o.new_output_qty != null) && (
-                    <div className="text-xs">
-                      Output: <span className="font-mono">{o.previous_output_qty ?? '—'}</span> → <span className="font-mono font-semibold">{o.new_output_qty ?? '—'}</span> {data.output_unit}
-                    </div>
-                  )}
-                  <div className="text-xs text-[var(--ink-muted)] italic">Reason: {o.reason}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </DetailSection>
-      )}
-    </div>
   );
 }

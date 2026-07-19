@@ -117,6 +117,7 @@ export const batchesApi = {
     api.post(`/batches/${id}/complete-blend`, data),
   splitLots: (id: number, lots: object[]) =>
     api.post(`/batches/${id}/lots`, { lots }),
+  getWorkflow: (id: number) => api.get(`/batches/${id}/workflow`),
 };
 
 // --- Lots ---
@@ -137,6 +138,33 @@ export const lotsApi = {
     api.post(`/lots/${id}/steps/${step}/scrap`, data),
   recordConsumable: (id: number, step: string, data: object) =>
     api.post(`/lots/${id}/steps/${step}/consumables`, data),
+  // approve/quality-result are new actions with no legacy /steps/ equivalent -- always use /nodes/.
+  decideApproval: (id: number, nodeKey: string, data: object) =>
+    api.post(`/lots/${id}/nodes/${nodeKey}/approve`, data),
+  submitQualityResult: (id: number, nodeKey: string, data: object) =>
+    api.post(`/lots/${id}/nodes/${nodeKey}/quality-result`, data),
+  // Full template graph (every node, visited or not) merged with this lot's runtime status per
+  // node -- powers the read-only execution graph view. See LotWorkflowGraph in lib/types.ts.
+  getGraph: (id: number) => api.get(`/lots/${id}/graph`),
+};
+
+// --- Workflow Templates ---
+export const workflowTemplatesApi = {
+  list: (params?: object) => api.get('/workflow-templates', { params }),
+  // versionId is the version row's own id (?version= query param), not the version number.
+  get: (id: number, versionId?: number) =>
+    api.get(`/workflow-templates/${id}`, { params: versionId ? { version: versionId } : undefined }),
+  create: (data: { name: string; description?: string; entity_type?: 'lot' | 'batch' }) =>
+    api.post('/workflow-templates', data),
+  createVersion: (id: number, cloneFromVersionId?: number) =>
+    api.post(`/workflow-templates/${id}/versions`, { clone_from_version_id: cloneFromVersionId }),
+  listVersions: (id: number, params?: object) =>
+    api.get(`/workflow-templates/${id}/versions`, { params }),
+  // versionNumber is the version NUMBER (1, 2, 3...) in the URL, not the version's database row id.
+  saveGraph: (id: number, versionNumber: number, data: { nodes: object[]; edges: object[] }) =>
+    api.put(`/workflow-templates/${id}/versions/${versionNumber}/graph`, data),
+  publish: (id: number, versionNumber: number) =>
+    api.post(`/workflow-templates/${id}/versions/${versionNumber}/publish`),
 };
 
 // --- Webhooks ---
@@ -156,4 +184,10 @@ export const reportsApi = {
     api.get('/reports/scrap-summary', { params }),
   materialUsage: (params?: object) =>
     api.get('/reports/material-usage', { params }),
+  rawMaterialUsage: (params?: object) =>
+    api.get('/reports/raw-material-usage', { params }),
+  stepUsage: (params?: object) =>
+    api.get('/reports/step-usage', { params }),
+  trends: (params?: object) =>
+    api.get('/reports/trends', { params }),
 };

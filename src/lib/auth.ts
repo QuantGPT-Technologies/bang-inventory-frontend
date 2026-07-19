@@ -44,6 +44,7 @@ export const ROUTE_PERMISSIONS: { prefix: string; resource: string; action: stri
   { prefix: '/consumables', resource: 'consumables', action: 'read' },
   { prefix: '/batches', resource: 'batches', action: 'read' },
   { prefix: '/lots', resource: 'lots', action: 'read' },
+  { prefix: '/workflow-templates', resource: 'workflow_templates', action: 'read' },
 ];
 
 export function routePermission(pathname: string) {
@@ -90,9 +91,23 @@ export function canAccess(user: User | null, resource: string, action: string): 
       analytics: ['admin', 'manager', 'engineer', 'production'],
       scrap: ['admin', 'engineer', 'production'],
       consumable: ['admin', 'production'],
+      // POST /lots/:id/nodes/:nodeKey/approve and /quality-result are router-gated with the same
+      // coarse allRoles set on the backend -- the fine-grained "does this role match the node's
+      // configured required_role" check for approvals happens server-side (WorkflowService.
+      // DecideApproval), since that's per-node config the frontend doesn't have. This entry only
+      // controls whether the approve/reject or pass/fail buttons render at all.
+      approve: ['admin', 'manager', 'engineer', 'production'],
+      quality_result: ['admin', 'manager', 'engineer', 'production'],
     },
     webhooks: { crud: ['admin'] },
     reports: { view: ['admin', 'manager', 'engineer'] },
+    // Mirrors router.go's workflowTemplates group: GET routes use allRoles, POST/PUT (create,
+    // create version, save graph) use mgmtRoles, and publish is RequireRoles(admin) only.
+    workflow_templates: {
+      read: ['admin', 'manager', 'engineer', 'production'],
+      write: ['admin', 'manager'],
+      publish: ['admin'],
+    },
   };
 
   return permissions[resource]?.[action]?.includes(role) ?? false;

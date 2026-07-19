@@ -11,8 +11,8 @@ import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Textarea from '@/components/ui/Textarea';
 import { toast } from '@/components/ui/Toast';
-import { skusApi, customersApi, rawMaterialsApi } from '@/lib/api';
-import { SKU, Customer, RawMaterial } from '@/lib/types';
+import { skusApi, customersApi, rawMaterialsApi, workflowTemplatesApi } from '@/lib/api';
+import { SKU, Customer, RawMaterial, WorkflowTemplate } from '@/lib/types';
 import { formatDate, formatQty, parseApiError } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
@@ -28,6 +28,7 @@ export default function SKUDetailPage() {
   const { user } = useAuthStore();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [rawMaterials, setRawMaterials] = useState<RawMaterial[]>([]);
+  const [workflowTemplates, setWorkflowTemplates] = useState<WorkflowTemplate[]>([]);
   const [editingDetails, setEditingDetails] = useState(false);
   const [editingMaterials, setEditingMaterials] = useState(false);
 
@@ -52,7 +53,16 @@ export default function SKUDetailPage() {
     rawMaterialsApi.list(1, 100).then((r) => setRawMaterials(r.data.data?.items || [])).catch(() => {
       toast.error('Failed to load raw materials list. Bill of materials editing may be unavailable.');
     });
+    workflowTemplatesApi.list({ per_page: 100 }).then((r) => setWorkflowTemplates(r.data.data?.items || [])).catch(() => {
+      toast.error('Failed to load workflow templates. Default workflow template editing may be unavailable.');
+    });
   }, []);
+
+  // The list endpoint doesn't return a distinct draft/published flag -- the workflow-templates
+  // list page itself treats "has a current_version_id" as the published signal (see
+  // src/app/workflow-templates/page.tsx's status column), so mirror that rule here: only
+  // templates with a published version are valid choices for a SKU's default.
+  const publishedWorkflowTemplates = workflowTemplates.filter((t) => t.current_version_id != null);
 
   if (!idIsValid) {
     return (
@@ -92,6 +102,7 @@ export default function SKUDetailPage() {
             <SkuDetailsForm
               sku={sku}
               customers={customers}
+              workflowTemplates={publishedWorkflowTemplates}
               onCancel={() => setEditingDetails(false)}
               onSaved={() => { reload(); setEditingDetails(false); }}
             />
@@ -104,6 +115,12 @@ export default function SKUDetailPage() {
               <DL label="Stock"><span className="font-mono">{formatQty(sku.current_stock, sku.unit)}</span></DL>
               <DL label="Status">
                 <Badge variant={sku.is_active ? 'success' : 'muted'}>{sku.is_active ? 'Active' : 'Inactive'}</Badge>
+              </DL>
+              <DL label="Default Workflow Template">
+                {sku.default_workflow_template_id
+                  ? workflowTemplates.find((t) => t.id === sku.default_workflow_template_id)?.name
+                    || `Template #${sku.default_workflow_template_id}`
+                  : <span className="text-[var(--ink-muted)]">System Default</span>}
               </DL>
               {sku.description && <DL label="Description"><span className="text-[var(--ink-muted)]">{sku.description}</span></DL>}
               <DL label="Created">{formatDate(sku.created_at)}</DL>
@@ -179,16 +196,19 @@ const skuDetailsSchema = z.object({
   description: skuSchema.shape.description,
   customer_id: skuSchema.shape.customer_id,
   unit: skuSchema.shape.unit,
+  default_workflow_template_id: z.number().int().positive().nullable().optional(),
 });
 
 function SkuDetailsForm({
   sku,
   customers,
+  workflowTemplates,
   onCancel,
   onSaved,
 }: {
   sku: SKU;
   customers: Customer[];
+  workflowTemplates: WorkflowTemplate[];
   onCancel: () => void;
   onSaved: () => void;
 }) {
@@ -197,6 +217,9 @@ function SkuDetailsForm({
   const [description, setDescription] = useState(sku.description || '');
   const [customerId, setCustomerId] = useState<number | undefined>(sku.customer_id);
   const [unit, setUnit] = useState(sku.unit);
+  const [defaultWorkflowTemplateId, setDefaultWorkflowTemplateId] = useState<number | null>(
+    sku.default_workflow_template_id ?? null
+  );
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
 
@@ -204,7 +227,14 @@ function SkuDetailsForm({
     e.preventDefault();
     if (loading) return;
 
-    const payload = { code, name, description, customer_id: customerId, unit };
+    const payload = {
+      code,
+      name,
+      description,
+      customer_id: customerId,
+      unit,
+      default_workflow_template_id: defaultWorkflowTemplateId,
+    };
     const result = validate(skuDetailsSchema, payload);
     if (!result.success) {
       setErrors(result.errors);
@@ -244,6 +274,15 @@ function SkuDetailsForm({
         value={unit}
         onChange={(e) => setUnit(e.target.value)}
         placeholder=""
+      />
+      <Select
+        label="Default Workflow Template"
+        options={workflowTemplates.map((t) => ({ value: t.id, label: t.name }))}
+        value={defaultWorkflowTemplateId || ''}
+        onChange={(e) => setDefaultWorkflowTemplateId(Number(e.target.value) || null)}
+        placeholder="System Default"
+        hint={!errors.default_workflow_template_id ? 'Used when a lot for this SKU is created without an explicit workflow.' : undefined}
+        error={errors.default_workflow_template_id}
       />
       <div className="flex justify-end gap-2 pt-1">
         <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={loading}>

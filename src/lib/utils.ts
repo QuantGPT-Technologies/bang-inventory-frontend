@@ -26,10 +26,6 @@ export function formatQty(qty?: number, unit?: string): string {
   return unit ? `${formatted} ${unit}` : formatted;
 }
 
-export const STEP_ORDER = [
-  'compaction', 'sintering', 'marking', 'barreling', 'sizing', 'batching',
-] as const;
-
 /** Skippable per UI_GUIDE.md section 5: compaction and batching cannot be skipped. */
 export const SKIPPABLE_STEPS: Record<string, boolean> = {
   sintering: true,
@@ -53,6 +49,22 @@ export const STEP_SCRAP_TYPES: Record<string, string[]> = {
   marking: ['setting'],
   sizing: ['testing', 'dimension_rejection'],
 };
+
+/**
+ * Human-readable label for a workflow node's `node_key`. The lot detail page's `steps` array
+ * (GET /lots/:id) is now backed by WorkflowNodeInstance rows, which only carry `node_key` — the
+ * template's node.name is not denormalized onto the runtime instance, so there is no display
+ * name to read for custom workflow templates. Falls back to STEP_LABELS for the legacy fixed
+ * step names (compaction/sintering/marking/barreling/sizing/batching) so those keep their
+ * familiar labels; any other node_key (from a user-authored template, e.g. "step1"/"qc1") is
+ * humanized instead (snake/kebab-case -> Title Case).
+ */
+export function getNodeLabel(nodeKey: string): string {
+  if (STEP_LABELS[nodeKey]) return STEP_LABELS[nodeKey];
+  return nodeKey
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export const BATCH_STATUS_LABELS: Record<string, string> = {
   created: 'Created',

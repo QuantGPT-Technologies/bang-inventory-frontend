@@ -342,6 +342,80 @@ export const webhookSchema = z.object({
   is_active: z.boolean(),
 });
 
+// --- Workflow templates ---
+
+/**
+ * name/description limits mirror the backend DTO (models.CreateWorkflowTemplateRequest):
+ * `binding:"required,max=150"` / `binding:"omitempty,max=2000"`.
+ */
+export const workflowTemplateMetaSchema = z.object({
+  name: requiredText('Name', 150),
+  description: optionalText(2000),
+  entity_type: z.enum(['lot', 'batch']).optional(),
+});
+
+export const WORKFLOW_NODE_TYPES = ['production_step', 'approval', 'quality_check', 'conditional_branch', 'lot_fanout'] as const;
+
+export const productionStepConfigSchema = z.object({
+  input_unit: requiredText('Input unit', 20),
+  output_unit: requiredText('Output unit', 20),
+  skippable: z.boolean(),
+  credits_sku_stock_on_complete: z.boolean(),
+  allowed_scrap_types: z.array(z.string().trim().min(1)),
+  default_scrap_unit: optionalText(20),
+});
+
+export const approvalConfigSchema = z.object({
+  required_role: z.enum(ROLES, { error: 'Select a role' }),
+});
+
+const measurementFieldSchema = z.object({
+  key: requiredText('Key', 100),
+  label: requiredText('Label', 150),
+  type: z.enum(['number', 'text'], { error: 'Select a type' }),
+  required: z.boolean(),
+});
+
+export const qualityCheckConfigSchema = z.object({
+  measurement_fields: z.array(measurementFieldSchema).min(1, 'Add at least one measurement field'),
+});
+
+export const conditionalBranchConfigSchema = z.object({
+  source_field: z
+    .string({ error: 'Source field is required' })
+    .trim()
+    .min(1, 'Source field is required')
+    .refine(
+      (v) => v === 'outcome' || v === 'actual_output_qty' || v.startsWith('data.'),
+      "Must be 'outcome', 'actual_output_qty', or a 'data.<field>' path"
+    ),
+  operator: z.enum(['equals', 'gte', 'lte', 'gt', 'lt'], { error: 'Select an operator' }),
+  threshold: z.number().refine((v) => Number.isFinite(v), 'Enter a valid number').optional(),
+});
+
+// --- Lot node decisions ---
+
+/**
+ * POST /lots/:id/nodes/:nodeKey/approve — backend requires `reason` (min 3 non-whitespace chars)
+ * only when decision === 'rejected'; the binding tag alone can't express that, so it's enforced
+ * here, mirroring overrideStepSchema's mandatory-reason pattern.
+ */
+export const decideApprovalSchema = z
+  .object({
+    decision: z.enum(['approved', 'rejected'], { error: 'Select a decision' }),
+    reason: z.string().trim().max(1000, 'Reason must be 1000 characters or fewer').optional(),
+  })
+  .refine((d) => d.decision !== 'rejected' || (d.reason?.trim().length ?? 0) >= 3, {
+    message: 'Reason must be at least 3 characters when rejecting',
+    path: ['reason'],
+  });
+
+export const qualityResultSchema = z.object({
+  result: z.enum(['pass', 'fail'], { error: 'Select a result' }),
+  measurements: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
+  notes: optionalText(1000),
+});
+
 // --- Generic helpers for wiring zod into plain useState forms ---
 
 export type FieldErrors = Record<string, string>;

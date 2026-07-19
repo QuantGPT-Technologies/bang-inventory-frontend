@@ -6,7 +6,7 @@ import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import {
   LayoutDashboard, Factory, Package2, Users, Building2,
-  Truck, FlaskConical, Wrench, Layers, Webhook,
+  Truck, FlaskConical, Wrench, Layers, Webhook, Workflow,
   BarChart3, LogOut, ChevronRight
 } from 'lucide-react';
 
@@ -17,6 +17,7 @@ const navItems = [
     items: [
       { href: '/batches', label: 'Batches', icon: Factory, resource: 'batches', action: 'read' },
       { href: '/lots', label: 'Lots', icon: Layers, resource: 'lots', action: 'read' },
+      { href: '/workflow-templates', label: 'Workflow Templates', icon: Workflow, resource: 'workflow_templates', action: 'read' },
     ],
   },
   {

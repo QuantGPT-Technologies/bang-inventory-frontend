@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/Card';
-import { Badge, batchStatusBadge, lotStatusBadge } from '@/components/ui/Badge';
+import { Badge, batchStatusBadge, lotStatusBadge, stepStatusBadge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { ErrorState } from '@/components/ui/ErrorState';
 import Button from '@/components/ui/Button';
@@ -12,14 +12,15 @@ import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import { toast } from '@/components/ui/Toast';
 import { batchesApi, skusApi } from '@/lib/api';
-import { Batch, SKU } from '@/lib/types';
-import { formatDateTime, formatQty, BATCH_STATUS_LABELS, parseApiError } from '@/lib/utils';
+import { Batch, SKU, BatchWorkflowDetail } from '@/lib/types';
+import { formatDateTime, formatQty, BATCH_STATUS_LABELS, getNodeLabel, parseApiError } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import {
   completeBlendSchema, splitLotsSchema, validate, toNumber, type FieldErrors,
 } from '@/lib/validation';
 import { useAsyncQuery } from '@/lib/useAsync';
+import { NODE_TYPE_ICONS, NODE_TYPE_COLORS } from '@/components/workflow/workflowNodeMeta';
 import { Play, CheckCircle, Split, Plus, X, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
@@ -42,6 +43,32 @@ export default function BatchDetailPage() {
   }, [batchId, idIsValid]);
 
   const { data: batch, loading, error, reload } = useAsyncQuery<Batch | null>(fetchBatch, [batchId, idIsValid], null);
+
+  const fetchBatchWorkflow = useCallback(async () => {
+    if (!idIsValid) return null;
+    const res = await batchesApi.getWorkflow(batchId);
+    return res.data?.data ?? null;
+  }, [batchId, idIsValid]);
+
+  const { data: workflow, error: workflowError, reload: reloadWorkflow } = useAsyncQuery<BatchWorkflowDetail | null>(
+    fetchBatchWorkflow,
+    [batchId, idIsValid],
+    null
+  );
+
+  // The batch's own workflow row is a supplementary visualization, not the primary record --
+  // surface a toast on failure like the main batch fetch does, but don't block the rest of the
+  // page (it just renders without that card, same as the other optional sections below).
+  useEffect(() => {
+    if (workflowError) toast.error(workflowError.message);
+  }, [workflowError]);
+
+  // Blend/split actions change the batch's workflow status (and, on split, spawn child lot
+  // instances) -- refresh both the batch and its workflow view together after any of them.
+  const refreshAll = useCallback(() => {
+    reload();
+    reloadWorkflow();
+  }, [reload, reloadWorkflow]);
 
   useEffect(() => {
     if (error && !error.isNotFound) toast.error(error.message);
@@ -181,6 +208,57 @@ export default function BatchDetailPage() {
           </Card>
         )}
 
+        {/* Batch's own workflow (blend -> split_into_lots) plus every lot instance the fan-out spawned */}
+        {workflow && (
+          <Card title="Batch Workflow" className="lg:col-span-3">
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-2 flex-wrap">
+                {workflow.nodes.map((node, i) => {
+                  const Icon = NODE_TYPE_ICONS[node.node_type];
+                  const color = NODE_TYPE_COLORS[node.node_type];
+                  return (
+                    <div key={node.id} className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-md border border-[var(--border-light)] bg-[var(--paper)]">
+                        <Icon size={14} style={{ color }} className="flex-shrink-0" />
+                        <span className="text-sm font-medium text-[var(--ink)]">{getNodeLabel(node.node_key)}</span>
+                        <Badge variant={stepStatusBadge(node.status)}>{node.status.replace('_', ' ')}</Badge>
+                      </div>
+                      {i < workflow.nodes.length - 1 && (
+                        <ArrowRight size={14} className="text-[var(--ink-muted)] flex-shrink-0" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {workflow.child_lots.length > 0 && (
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-[var(--ink-muted)] mb-2">
+                    Spawned Lots
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {workflow.child_lots.map((cl) => (
+                      <Link
+                        key={cl.lot_id}
+                        href={`/lots/${cl.lot_id}`}
+                        className="flex items-center justify-between gap-2 px-3 py-2 rounded-md border border-[var(--border-light)] hover:bg-[var(--paper-dark)] transition-colors"
+                      >
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-mono text-sm font-semibold text-[var(--accent)]">{cl.lot_number}</span>
+                          <span className="text-xs text-[var(--ink-muted)] truncate">
+                            {cl.current_node_key ? getNodeLabel(cl.current_node_key) : '—'}
+                          </span>
+                        </div>
+                        <Badge variant={lotStatusBadge(cl.status)}>{cl.status.replace('_', ' ')}</Badge>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
+
         {/* Lots */}
         {batch.lots && batch.lots.length > 0 && (
           <Card title="Lots" className="lg:col-span-3" noPadding>
@@ -214,14 +292,14 @@ export default function BatchDetailPage() {
         <StartBlendModal
           batch={batch}
           onClose={() => setShowBlend(false)}
-          onDone={() => { setShowBlend(false); reload(); }}
+          onDone={() => { setShowBlend(false); refreshAll(); }}
         />
       )}
       {showCompleteBlend && batch.status === 'blending' && (
         <CompleteBlendModal
           batch={batch}
           onClose={() => setShowCompleteBlend(false)}
-          onDone={() => { setShowCompleteBlend(false); reload(); }}
+          onDone={() => { setShowCompleteBlend(false); refreshAll(); }}
         />
       )}
       {showSplit && batch.status === 'blended' && (
@@ -229,7 +307,7 @@ export default function BatchDetailPage() {
           batch={batch}
           skus={skus}
           onClose={() => setShowSplit(false)}
-          onDone={() => { setShowSplit(false); reload(); }}
+          onDone={() => { setShowSplit(false); refreshAll(); }}
         />
       )}
     </AppShell>
