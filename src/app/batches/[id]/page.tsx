@@ -13,7 +13,7 @@ import Select from '@/components/ui/Select';
 import { toast } from '@/components/ui/Toast';
 import { batchesApi, skusApi } from '@/lib/api';
 import { Batch, SKU, BatchWorkflowDetail } from '@/lib/types';
-import { formatDateTime, formatQty, BATCH_STATUS_LABELS, LOT_STATUS_LABELS, STEP_STATUS_LABELS, getNodeLabel, parseApiError } from '@/lib/utils';
+import { cn, formatDateTime, formatQty, BATCH_STATUS_LABELS, LOT_STATUS_LABELS, STEP_STATUS_LABELS, getNodeLabel, parseApiError } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import {
@@ -88,9 +88,12 @@ export default function BatchDetailPage() {
     );
   }
 
-  if (loading) return <AppShell><div className="p-8 text-center text-[var(--ink-muted)]">Loading…</div></AppShell>;
+  // Only the FIRST load blanks the page -- a reload after an action keeps everything on screen
+  // instead of tearing it down and repainting, which otherwise makes every single action feel
+  // like a full page reload. A reload that fails still surfaces via the toast effect above.
+  if (loading && !batch) return <AppShell><div className="p-8 text-center text-[var(--ink-muted)]">Loading…</div></AppShell>;
 
-  if (error) {
+  if (error && !batch) {
     return (
       <AppShell>
         <ErrorState
@@ -133,7 +136,7 @@ export default function BatchDetailPage() {
         }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className={cn('grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 transition-opacity duration-150', loading && 'opacity-60')}>
         {/* Details */}
         <Card title="Batch Details" className="lg:col-span-1">
           <dl className="space-y-3 text-sm">

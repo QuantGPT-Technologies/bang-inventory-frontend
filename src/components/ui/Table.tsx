@@ -25,9 +25,14 @@ export function Table<T>({
   emptyMessage = 'No records found.',
   loading,
 }: TableProps<T>) {
+  // Only the FIRST load (no rows yet) shows the bare "Loading…" placeholder -- a reload after a
+  // filter/search change or a background refresh keeps the existing rows visible (just dimmed),
+  // rather than tearing the whole table down and repainting from scratch on every request.
+  const isInitialLoad = loading && data.length === 0;
+
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className={cn('w-full text-sm transition-opacity duration-150', loading && data.length > 0 && 'opacity-50')}>
         <thead>
           <tr className="border-b border-[var(--border-light)]">
             {columns.map((col) => (
@@ -44,7 +49,7 @@ export function Table<T>({
           </tr>
         </thead>
         <tbody>
-          {loading ? (
+          {isInitialLoad ? (
             <tr>
               <td colSpan={columns.length} className="text-center py-12 text-[var(--ink-muted)] text-xs">
                 Loading…

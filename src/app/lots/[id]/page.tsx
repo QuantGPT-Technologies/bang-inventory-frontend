@@ -104,8 +104,11 @@ export default function LotDetailPage() {
     );
   }
 
-  if (loading) return <AppShell><div className="p-8 text-center text-[var(--ink-muted)]">Loading…</div></AppShell>;
-  if (error) return <AppShell><ErrorState error={error} onRetry={error.isNotFound ? undefined : reload} /></AppShell>;
+  // Only the FIRST load blanks the page -- a reload after an action (or the graph's own
+  // background refresh) keeps everything on screen instead of tearing it down and repainting,
+  // which otherwise makes every single action feel like a full page reload.
+  if (loading && !lot) return <AppShell><div className="p-8 text-center text-[var(--ink-muted)]">Loading…</div></AppShell>;
+  if (error && !lot) return <AppShell><ErrorState error={error} onRetry={error.isNotFound ? undefined : reload} /></AppShell>;
   if (!lot) return <AppShell><div className="p-8 text-center text-[var(--ink-muted)]">Lot not found.</div></AppShell>;
 
   const canStep = canAccess(user, 'lots', 'step');
@@ -217,7 +220,7 @@ export default function LotDetailPage() {
         }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className={cn('grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 transition-opacity duration-150', loading && 'opacity-60')}>
         {/* Info */}
         <Card title="Lot Details">
           <dl className="space-y-3 text-sm">

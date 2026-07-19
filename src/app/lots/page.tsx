@@ -29,9 +29,13 @@ export default function LotsPage() {
 
   // Debounced so typing a lot number doesn't fire a request per keystroke -- jumping straight to
   // a known lot/SKU/batch number was previously impossible here at all (only coarse status/step
-  // dropdowns existed), the single highest-friction "find my thing" gap on this page.
+  // dropdowns existed), the single highest-friction "find my thing" gap on this page. The page
+  // reset lives in this same callback (not the input's onChange) so it fires once, together with
+  // the debounced value -- resetting it immediately on every keystroke would, whenever the user
+  // was on page >1, fire one fetch with the stale search term right away and a second one 300ms
+  // later with the real term.
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 300);
     return () => clearTimeout(t);
   }, [search]);
 
@@ -101,7 +105,7 @@ export default function LotsPage() {
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-muted)] pointer-events-none" />
             <Input
               value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="Search lot #, SKU, or batch #"
               className="pl-8 py-1.5 text-xs"
             />

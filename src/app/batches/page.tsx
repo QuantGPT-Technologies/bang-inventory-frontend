@@ -35,9 +35,12 @@ export default function BatchesPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [rawMaterials, setRawMaterials] = useState<RawMaterial[]>([]);
 
-  // Debounced so typing a batch number doesn't fire a request per keystroke.
+  // Debounced so typing a batch number doesn't fire a request per keystroke. The page reset
+  // lives in this same callback (not the input's onChange) so it fires once, together with the
+  // debounced value, instead of firing an extra fetch with the stale search term immediately
+  // whenever the user was on page >1.
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 300);
     return () => clearTimeout(t);
   }, [search]);
 
@@ -120,7 +123,7 @@ export default function BatchesPage() {
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-muted)] pointer-events-none" />
             <Input
               value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="Search batch #"
               className="pl-8 py-1.5 text-xs"
             />
