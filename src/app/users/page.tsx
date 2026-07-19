@@ -92,6 +92,7 @@ export default function UsersPage() {
                 disabled={togglingId === u.id || u.id === currentUser?.id}
                 className="p-1 text-[var(--ink-muted)] hover:text-[var(--accent)] disabled:opacity-30"
                 title={u.id === currentUser?.id ? 'Cannot modify your own account' : u.is_active ? 'Deactivate' : 'Reactivate'}
+                aria-label={u.id === currentUser?.id ? 'Cannot modify your own account' : u.is_active ? 'Deactivate user' : 'Reactivate user'}
               >
                 {u.is_active ? <Ban size={13} /> : <CheckCircle2 size={13} />}
               </button>

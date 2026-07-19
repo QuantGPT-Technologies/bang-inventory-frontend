@@ -65,6 +65,7 @@ export default function ConsumablesPage() {
                 onClick={(e) => { e.stopPropagation(); setShowAdjust({ id: c.id, name: c.name, stock: c.current_stock, unit: c.unit }); }}
                 className="p-1 text-[var(--ink-muted)] hover:text-[var(--accent)]"
                 title="Adjust stock"
+                aria-label="Adjust stock"
               >
                 <Pencil size={12} />
               </button>

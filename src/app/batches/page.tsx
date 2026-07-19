@@ -291,6 +291,8 @@ function CreateBatchModal({
                   type="button"
                   onClick={() => removeMaterial(i)}
                   disabled={materials.length === 1}
+                  title="Remove material"
+                  aria-label="Remove material"
                   className="text-[var(--ink-muted)] hover:text-red-600 pb-1 disabled:opacity-30 disabled:hover:text-[var(--ink-muted)]"
                 >
                   <X size={14} />

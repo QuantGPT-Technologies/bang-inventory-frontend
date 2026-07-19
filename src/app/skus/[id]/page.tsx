@@ -92,7 +92,7 @@ export default function SKUDetailPage() {
           className="lg:col-span-1"
           action={
             canWrite && !editingDetails && (
-              <button onClick={() => setEditingDetails(true)} className="text-[var(--ink-muted)] hover:text-[var(--accent)]" title="Edit">
+              <button onClick={() => setEditingDetails(true)} className="text-[var(--ink-muted)] hover:text-[var(--accent)]" title="Edit" aria-label="Edit SKU details">
                 <Pencil size={14} />
               </button>
             )
@@ -400,7 +400,14 @@ function MaterialsForm({
                 className="py-1.5 text-xs"
               />
             </div>
-            <button type="button" onClick={() => removeMaterial(i)} disabled={materials.length === 1} className="text-[var(--ink-muted)] hover:text-red-600 pb-1 disabled:opacity-30">
+            <button
+              type="button"
+              onClick={() => removeMaterial(i)}
+              disabled={materials.length === 1}
+              title="Remove material"
+              aria-label="Remove material"
+              className="text-[var(--ink-muted)] hover:text-red-600 pb-1 disabled:opacity-30"
+            >
               <X size={14} />
             </button>
           </div>

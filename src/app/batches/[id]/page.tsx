@@ -489,7 +489,7 @@ function CompleteBlendModal({ batch, onClose, onDone }: { batch: Batch; onClose:
                   <div className="flex-1">
                     <Input value={row.notes} onChange={(e) => updateScrapRow(i, 'notes', e.target.value)} placeholder="Notes (optional)" className="py-1.5 text-xs" />
                   </div>
-                  <button type="button" onClick={() => removeScrapRow(i)} className="text-[var(--ink-muted)] hover:text-red-600 pb-1"><X size={14} /></button>
+                  <button type="button" onClick={() => removeScrapRow(i)} title="Remove scrap entry" aria-label="Remove scrap entry" className="text-[var(--ink-muted)] hover:text-red-600 pb-1"><X size={14} /></button>
                 </div>
               ))}
             </div>
@@ -582,7 +582,7 @@ function SplitLotsModal({ batch, skus, onClose, onDone }: { batch: Batch; skus: 
             <div className="w-28">
               <Input type="number" step="0.001" min="0" value={lot.quantity} onChange={(e) => updateLot(i, 'quantity', e.target.value)} placeholder="Qty" className="py-1.5 text-xs" />
             </div>
-            <button type="button" onClick={() => removeLot(i)} disabled={lots.length === 1} className="text-[var(--ink-muted)] hover:text-red-600 pb-1 disabled:opacity-30"><X size={14} /></button>
+            <button type="button" onClick={() => removeLot(i)} disabled={lots.length === 1} title="Remove lot" aria-label="Remove lot" className="text-[var(--ink-muted)] hover:text-red-600 pb-1 disabled:opacity-30"><X size={14} /></button>
           </div>
         ))}
         {errors.lots && <p className="text-xs text-red-600">{errors.lots}</p>}

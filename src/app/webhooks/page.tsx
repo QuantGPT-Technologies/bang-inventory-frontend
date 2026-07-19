@@ -104,13 +104,13 @@ export default function WebhooksPage() {
             header: '',
             render: (w: Webhook) => (
               <div className="flex items-center gap-1 justify-end">
-                <button onClick={(e) => { e.stopPropagation(); handleTest(w); }} disabled={busyId === w.id || !w.is_active} className="p-1 text-[var(--ink-muted)] hover:text-[var(--accent)] disabled:opacity-30" title={w.is_active ? 'Send test event' : 'Webhook is inactive'}>
+                <button onClick={(e) => { e.stopPropagation(); handleTest(w); }} disabled={busyId === w.id || !w.is_active} className="p-1 text-[var(--ink-muted)] hover:text-[var(--accent)] disabled:opacity-30" title={w.is_active ? 'Send test event' : 'Webhook is inactive'} aria-label={w.is_active ? 'Send test event' : 'Webhook is inactive'}>
                   <Play size={12} />
                 </button>
-                <button onClick={(e) => { e.stopPropagation(); setShowEdit(w); }} className="p-1 text-[var(--ink-muted)] hover:text-blue-600" title="Edit">
+                <button onClick={(e) => { e.stopPropagation(); setShowEdit(w); }} className="p-1 text-[var(--ink-muted)] hover:text-blue-600" title="Edit" aria-label="Edit webhook">
                   <Edit size={12} />
                 </button>
-                <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(w); }} disabled={busyId === w.id} className="p-1 text-[var(--ink-muted)] hover:text-red-600 disabled:opacity-30" title="Delete">
+                <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(w); }} disabled={busyId === w.id} className="p-1 text-[var(--ink-muted)] hover:text-red-600 disabled:opacity-30" title="Delete" aria-label="Delete webhook">
                   <Trash2 size={12} />
                 </button>
               </div>

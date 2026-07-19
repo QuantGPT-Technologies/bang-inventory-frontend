@@ -73,6 +73,7 @@ export default function RawMaterialsPage() {
                 onClick={(e) => { e.stopPropagation(); setShowAdjust({ id: r.id, name: r.name, stock: r.current_stock, unit: r.unit }); }}
                 className="p-1 text-[var(--ink-muted)] hover:text-[var(--accent)]"
                 title="Adjust stock"
+                aria-label="Adjust stock"
               >
                 <Pencil size={12} />
               </button>
