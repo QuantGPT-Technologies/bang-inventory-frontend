@@ -8,7 +8,7 @@ import { Badge, stepStatusBadge, lotStatusBadge } from '@/components/ui/Badge';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { toast } from '@/components/ui/Toast';
 import { lotsApi, consumablesApi } from '@/lib/api';
-import { Lot, Consumable, WorkflowNodeType, LotWorkflowGraph } from '@/lib/types';
+import { Lot, Consumable, WorkflowNodeType, LotWorkflowGraph, ProductionStepConfig } from '@/lib/types';
 import { cn, formatDateTime, formatQty, getNodeLabel, STEP_SCRAP_TYPES, SKIPPABLE_STEPS, LOT_STATUS_LABELS, STEP_STATUS_LABELS } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
@@ -24,7 +24,7 @@ import { Play, CheckCircle, SkipForward, AlertTriangle, Package, Pencil, BarChar
 type PipelineView = 'list' | 'graph';
 
 type ActionModalState =
-  | { kind: 'production'; type: ProductionActionType | string; nodeKey: string }
+  | { kind: 'production'; type: ProductionActionType | string; nodeKey: string; scrapTypes: string[] }
   | { kind: 'approval'; decision: 'approved' | 'rejected'; nodeKey: string }
   | { kind: 'quality'; result: 'pass' | 'fail'; nodeKey: string };
 
@@ -234,7 +234,15 @@ export default function LotDetailPage() {
 
               const accentColor = NODE_TYPE_COLORS[nodeType];
               const isOptional = nodeType === 'production_step' && !!SKIPPABLE_STEPS[nodeKey];
-              const hasScrapTypes = nodeType === 'production_step' && (STEP_SCRAP_TYPES[nodeKey] || []).length > 0;
+              // A custom workflow-template node's own config.allowed_scrap_types is the source of
+              // truth -- STEP_SCRAP_TYPES is a fallback only for the legacy fixed six steps that
+              // predate the config field, never a ceiling on what a custom template can allow.
+              const scrapTypes = nodeType === 'production_step'
+                ? ((node.config as ProductionStepConfig)?.allowed_scrap_types?.length
+                    ? (node.config as ProductionStepConfig).allowed_scrap_types
+                    : STEP_SCRAP_TYPES[nodeKey] || [])
+                : [];
+              const hasScrapTypes = scrapTypes.length > 0;
               const isCurrent = graph?.current_node_key === nodeKey;
               const instance = node.instance;
               // See the stepsByNodeKey comment above: graph.nodes[i].instance never carries
@@ -359,7 +367,7 @@ export default function LotDetailPage() {
                       <>
                         {status === 'pending' && canStep && isCurrent && (
                           <button
-                            onClick={() => setActionModal({ kind: 'production', type: 'start', nodeKey })}
+                            onClick={() => setActionModal({ kind: 'production', type: 'start', nodeKey, scrapTypes })}
                             className="text-blue-600 hover:text-blue-800 p-1 rounded"
                             title="Start step"
                           >
@@ -368,7 +376,7 @@ export default function LotDetailPage() {
                         )}
                         {status === 'in_progress' && canStep && isCurrent && (
                           <button
-                            onClick={() => setActionModal({ kind: 'production', type: 'complete', nodeKey })}
+                            onClick={() => setActionModal({ kind: 'production', type: 'complete', nodeKey, scrapTypes })}
                             className="text-green-600 hover:text-green-800 p-1 rounded"
                             title="Complete step"
                           >
@@ -377,7 +385,7 @@ export default function LotDetailPage() {
                         )}
                         {(status === 'in_progress' || status === 'completed') && canScrap && hasScrapTypes && (
                           <button
-                            onClick={() => setActionModal({ kind: 'production', type: 'scrap', nodeKey })}
+                            onClick={() => setActionModal({ kind: 'production', type: 'scrap', nodeKey, scrapTypes })}
                             className="text-amber-600 hover:text-amber-800 p-1 rounded"
                             title="Record scrap"
                           >
@@ -386,7 +394,7 @@ export default function LotDetailPage() {
                         )}
                         {status === 'in_progress' && canConsumable && isCurrent && (
                           <button
-                            onClick={() => setActionModal({ kind: 'production', type: 'consumable', nodeKey })}
+                            onClick={() => setActionModal({ kind: 'production', type: 'consumable', nodeKey, scrapTypes })}
                             className="text-purple-600 hover:text-purple-800 p-1 rounded"
                             title="Record consumable usage"
                           >
@@ -395,7 +403,7 @@ export default function LotDetailPage() {
                         )}
                         {status === 'pending' && isOptional && canSkip && isCurrent && (
                           <button
-                            onClick={() => setActionModal({ kind: 'production', type: 'skip', nodeKey })}
+                            onClick={() => setActionModal({ kind: 'production', type: 'skip', nodeKey, scrapTypes })}
                             className="text-amber-600 hover:text-amber-800 p-1 rounded"
                             title="Skip step"
                           >
@@ -404,7 +412,7 @@ export default function LotDetailPage() {
                         )}
                         {status === 'completed' && canOverride && (
                           <button
-                            onClick={() => setActionModal({ kind: 'production', type: 'override', nodeKey })}
+                            onClick={() => setActionModal({ kind: 'production', type: 'override', nodeKey, scrapTypes })}
                             className="text-blue-600 hover:text-blue-800 p-1 rounded"
                             title="Override recorded quantities"
                           >
@@ -413,7 +421,7 @@ export default function LotDetailPage() {
                         )}
                         {status !== 'pending' && canAnalytics && (
                           <button
-                            onClick={() => setActionModal({ kind: 'production', type: 'analytics', nodeKey })}
+                            onClick={() => setActionModal({ kind: 'production', type: 'analytics', nodeKey, scrapTypes })}
                             className="text-[var(--ink-muted)] hover:text-[var(--ink)] p-1 rounded"
                             title="View step detail"
                           >
@@ -474,6 +482,7 @@ export default function LotDetailPage() {
           lot={lot}
           actionType={actionModal.type}
           nodeKey={actionModal.nodeKey}
+          allowedScrapTypes={actionModal.scrapTypes}
           consumables={consumables}
           onClose={() => setActionModal(null)}
           onDone={() => { setActionModal(null); reloadAll(); }}

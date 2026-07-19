@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { STEP_SCRAP_TYPES } from './utils';
 
 // --- Shared primitives ---
 
@@ -14,7 +13,7 @@ function qtySchema(sign: 'gt0' | 'gte0', unit?: string) {
     ? schema.refine((v) => v > 0, { message: 'Must be greater than 0' })
     : schema.refine((v) => v >= 0, { message: 'Cannot be negative' });
   if (unit && INTEGER_UNITS.has(unit)) {
-    return schema.refine((v) => Number.isInteger(v), { message: `Must be a whole number for unit '${unit}'` });
+    return schema.refine((v) => Number.isInteger(v), { message: 'Enter a whole number -- this unit is counted in whole pieces, not fractions' });
   }
   return schema.refine((v) => Math.round(v * 1000) === v * 1000, { message: 'Max 3 decimal places' });
 }
@@ -305,11 +304,13 @@ export function overrideStepSchema(inputUnit?: string, outputUnit?: string) {
   });
 }
 
-export function scrapSchema(stepName: string, unit?: string) {
-  const allowed = STEP_SCRAP_TYPES[stepName] || [];
+// allowedTypes comes from the workflow node's own config.allowed_scrap_types (the caller
+// resolves the STEP_SCRAP_TYPES legacy fallback before calling this, if applicable) -- this
+// function has no way to look up a node's config itself, only what it's handed.
+export function scrapSchema(allowedTypes: string[], unit?: string) {
   return z.object({
-    scrap_type: z.string().refine((v) => allowed.includes(v), {
-      message: allowed.length ? `Must be one of: ${allowed.join(', ')}` : 'This step does not allow scrap entries',
+    scrap_type: z.string().refine((v) => allowedTypes.includes(v), {
+      message: allowedTypes.length ? `Must be one of: ${allowedTypes.join(', ')}` : 'This step does not allow scrap entries',
     }),
     quantity: positiveQtyForUnit(unit),
     unit: optionalText(20),

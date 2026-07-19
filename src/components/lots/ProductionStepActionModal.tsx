@@ -9,7 +9,7 @@ import Textarea from '@/components/ui/Textarea';
 import { toast } from '@/components/ui/Toast';
 import { lotsApi } from '@/lib/api';
 import { Lot, LotStep, Consumable } from '@/lib/types';
-import { formatDateTime, formatQty, getNodeLabel, STEP_SCRAP_TYPES, SKIPPABLE_STEPS, STEP_STATUS_LABELS, parseApiError } from '@/lib/utils';
+import { formatDateTime, formatQty, getNodeLabel, SKIPPABLE_STEPS, STEP_STATUS_LABELS, parseApiError } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import { startStepSchema, completeStepSchema, overrideStepSchema, scrapSchema, consumableUsageSchema, validate, toNumber, INTEGER_UNITS, type FieldErrors } from '@/lib/validation';
@@ -40,6 +40,7 @@ export function ProductionStepActionModal({
   lot,
   actionType,
   nodeKey,
+  allowedScrapTypes,
   consumables,
   onClose,
   onDone,
@@ -47,6 +48,11 @@ export function ProductionStepActionModal({
   lot: Lot;
   actionType: ProductionActionType | string;
   nodeKey: string;
+  // Resolved by the caller from the node's own config.allowed_scrap_types (falling back to the
+  // legacy STEP_SCRAP_TYPES map only for the six fixed steps that predate that config field) --
+  // this component doesn't have the workflow graph node, only nodeKey, so it can't resolve this
+  // itself.
+  allowedScrapTypes: string[];
   consumables: Consumable[];
   onClose: () => void;
   onDone: () => void;
@@ -76,7 +82,7 @@ export function ProductionStepActionModal({
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
 
-  const scrapTypes = STEP_SCRAP_TYPES[nodeKey] || [];
+  const scrapTypes = allowedScrapTypes;
   const noConsumablesAvailable = consumables.length === 0;
   const selectedConsumable = consumables.find((c) => c.id === consumableId);
 
@@ -191,7 +197,7 @@ export function ProductionStepActionModal({
           break;
         }
         case 'scrap': {
-          const schema = scrapSchema(nodeKey, scrapUnit);
+          const schema = scrapSchema(scrapTypes, scrapUnit);
           const payload = { scrap_type: scrapType, quantity: toNumber(scrapQty), unit: scrapUnit, notes };
           const result = validate(schema, payload);
           if (!result.success) {
