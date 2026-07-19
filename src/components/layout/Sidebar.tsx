@@ -5,42 +5,56 @@ import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import {
-  LayoutDashboard, Factory, Package2, Users, Building2,
+  Home, Factory, Package2, Users, Building2,
   Truck, FlaskConical, Wrench, Layers, Webhook, Workflow,
   BarChart3, LogOut, ChevronRight
 } from 'lucide-react';
 
+// Grouped by what someone actually does, not by backend resource/admin category: the daily
+// production work first, then the catalog it's made from, then partners, then insights, with
+// engineering/admin setup (including the workflow-template graph editor -- not a "click here,
+// enter this" operator concept) pushed to the bottom so it doesn't compete with daily work.
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard', label: 'Home', icon: Home },
   {
     label: 'Production',
+    subtitle: 'The daily work: batches and lots',
     items: [
       { href: '/batches', label: 'Batches', icon: Factory, resource: 'batches', action: 'read' },
       { href: '/lots', label: 'Lots', icon: Layers, resource: 'lots', action: 'read' },
-      { href: '/workflow-templates', label: 'Workflow Templates', icon: Workflow, resource: 'workflow_templates', action: 'read' },
     ],
   },
   {
-    label: 'Master Data',
+    label: 'Catalog',
+    subtitle: 'What we make things from and into',
     items: [
       { href: '/skus', label: 'SKUs', icon: Package2, resource: 'skus', action: 'read' },
       { href: '/raw-materials', label: 'Raw Materials', icon: FlaskConical, resource: 'raw_materials', action: 'read' },
       { href: '/consumables', label: 'Consumables', icon: Wrench, resource: 'consumables', action: 'read' },
+    ],
+  },
+  {
+    label: 'Partners',
+    subtitle: 'Customers and vendors',
+    items: [
       { href: '/customers', label: 'Customers', icon: Building2, resource: 'customers', action: 'read' },
       { href: '/vendors', label: 'Vendors', icon: Truck, resource: 'vendors', action: 'read' },
     ],
   },
   {
-    label: 'Admin',
+    label: 'Insights',
+    subtitle: 'Reports & trends',
     items: [
-      { href: '/users', label: 'Users', icon: Users, resource: 'users', action: 'crud' },
-      { href: '/webhooks', label: 'Webhooks', icon: Webhook, resource: 'webhooks', action: 'crud' },
+      { href: '/reports', label: 'Reports', icon: BarChart3, resource: 'reports', action: 'view' },
     ],
   },
   {
-    label: 'Analytics',
+    label: 'Settings',
+    subtitle: 'Users, integrations, and template setup',
     items: [
-      { href: '/reports', label: 'Reports', icon: BarChart3, resource: 'reports', action: 'view' },
+      { href: '/workflow-templates', label: 'Workflow Templates', icon: Workflow, resource: 'workflow_templates', action: 'read' },
+      { href: '/users', label: 'Users', icon: Users, resource: 'users', action: 'crud' },
+      { href: '/webhooks', label: 'Webhooks', icon: Webhook, resource: 'webhooks', action: 'crud' },
     ],
   },
 ] as const;
@@ -85,8 +99,11 @@ export function Sidebar() {
           if (visibleItems.length === 0) return null;
           return (
             <div key={si}>
-              <p className="text-[10px] uppercase tracking-widest text-white/30 px-2 mb-1.5">
+              <p className="text-[10px] uppercase tracking-widest text-white/30 px-2">
                 {section.label}
+              </p>
+              <p className="text-[10px] text-white/25 px-2 mb-1.5 leading-tight">
+                {section.subtitle}
               </p>
               <div className="space-y-0.5">
                 {visibleItems.map((item) => (
