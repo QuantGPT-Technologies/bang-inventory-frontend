@@ -73,3 +73,16 @@ body::before {
   background: var(--accent-muted);
   color: var(--accent);
 }
+
+/* Modal entrance -- an instant snap-in for something that opens on nearly every action across
+   the app (start/complete/scrap/skip/approve/reject/create...) reads as jumpy; this keeps it
+   cheap (CSS only, no animation library) while making every one of those interactions feel
+   deliberate rather than abrupt. */
+@keyframes modal-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes modal-panel-in {
+  from { opacity: 0; transform: scale(0.97) translateY(4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}

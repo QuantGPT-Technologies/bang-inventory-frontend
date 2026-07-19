@@ -161,7 +161,9 @@ export default function BatchesPage() {
         <CreateBatchModal
           rawMaterials={rawMaterials}
           onClose={() => setShowCreate(false)}
-          onCreated={() => { setShowCreate(false); setPage(1); reload(); }}
+          // Straight to the new batch's detail page -- "Start Blending" is almost always the
+          // very next thing to do, so landing back on the list would just mean finding it again.
+          onCreated={(newBatchId) => { setShowCreate(false); router.push(`/batches/${newBatchId}`); }}
         />
       )}
     </AppShell>
@@ -177,7 +179,7 @@ function CreateBatchModal({
 }: {
   rawMaterials: RawMaterial[];
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: (newBatchId: number) => void;
 }) {
   const [totalQty, setTotalQty] = useState('');
   const [unit, setUnit] = useState('kg');
@@ -222,9 +224,9 @@ function CreateBatchModal({
 
     setLoading(true);
     try {
-      await batchesApi.create(result.data);
+      const res = await batchesApi.create(result.data);
       toast.success('Batch created successfully');
-      onCreated();
+      onCreated(res.data.data.id);
     } catch (err) {
       const info = parseApiError(err);
       toast.error(info.message);

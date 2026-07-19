@@ -37,12 +37,16 @@ export function Modal({ open, onClose, title, subtitle, children, size = 'md', f
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="absolute inset-0 bg-[var(--ink)]/40 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-[var(--ink)]/40 backdrop-blur-sm animate-[modal-backdrop-in_150ms_ease-out]"
+        onClick={onClose}
+      />
       <div
         className={cn(
           'relative w-full bg-[var(--paper)] rounded-lg shadow-xl',
           'border border-[var(--border)]',
           'flex flex-col max-h-[90vh]',
+          'animate-[modal-panel-in_150ms_ease-out]',
           sizeClass
         )}
       >
@@ -54,6 +58,7 @@ export function Modal({ open, onClose, title, subtitle, children, size = 'md', f
             </div>
             <button
               onClick={onClose}
+              aria-label="Close"
               className="text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors"
             >
               <X size={18} />
