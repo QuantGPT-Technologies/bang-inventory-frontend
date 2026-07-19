@@ -64,3 +64,14 @@ export function lotStatusBadge(status: string) {
   };
   return map[status] || 'default';
 }
+
+// 'low' maps to 'warning' (amber) deliberately -- it's a genuine "needs action" state (reorder
+// this soon), the one thing amber is reserved for app-wide.
+export function stockStatusBadge(status: string) {
+  const map: Record<string, BadgeVariant> = {
+    out: 'danger',
+    low: 'warning',
+    ok: 'success',
+  };
+  return map[status] || 'default';
+}

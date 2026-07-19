@@ -518,6 +518,45 @@ export interface AttentionList {
   items: AttentionItem[];
 }
 
+/** GET /reports/yield-summary response. YieldPct is SUM(output)/SUM(input)*100 across the group,
+ * not an average of individual instances' yield -- see the backend's YieldSummaryRow doc comment. */
+export interface YieldSummaryRow {
+  key: string;
+  label?: string;
+  total_input_qty: number;
+  total_output_qty: number;
+  yield_pct: number;
+  instance_count: number;
+}
+
+export interface YieldSummary {
+  group_by: 'step' | 'sku';
+  rows: YieldSummaryRow[];
+}
+
+/** GET /reports/stock-levels response. avg_daily_usage/days_of_cover are absent (not 0) when
+ * there's no usage history to compute from -- SKUs never carry them at all (no consumption
+ * table exists to compute a SKU's usage from, only current_stock). */
+export interface StockLevelItem {
+  id: number;
+  code: string;
+  name: string;
+  unit: string;
+  current_stock: number;
+  avg_daily_usage?: number;
+  days_of_cover?: number;
+  status: 'out' | 'low' | 'ok';
+}
+
+export interface StockLevels {
+  usage_window_days: number;
+  low_stock_days_threshold: number;
+  raw_materials: StockLevelItem[];
+  consumables: StockLevelItem[];
+  skus: StockLevelItem[];
+  summary: { out_of_stock_count: number; low_stock_count: number };
+}
+
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;

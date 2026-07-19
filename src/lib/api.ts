@@ -190,6 +190,10 @@ export const reportsApi = {
     api.get('/reports/step-usage', { params }),
   trends: (params?: object) =>
     api.get('/reports/trends', { params }),
+  yieldSummary: (params?: object) =>
+    api.get('/reports/yield-summary', { params }),
+  stockLevels: (params?: object) =>
+    api.get('/reports/stock-levels', { params }),
 };
 
 // The single "what needs attention right now" source -- backs the Home task queue and (later)
