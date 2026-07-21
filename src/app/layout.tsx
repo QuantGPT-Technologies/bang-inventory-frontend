@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Bang Inventory — Production Tracker",
+  title: "QGPT Production Tracker",
   description: "Powder Metallurgy Factory Production Line Tracking System",
 };
 

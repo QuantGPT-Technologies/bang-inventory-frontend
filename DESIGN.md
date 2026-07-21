@@ -1,4 +1,4 @@
-# Bang Inventory -- Manufacturing Production Line Tracking System
+# QGPT Production Tracker -- Manufacturing Production Line Tracking System
 
 ## Design Document v1.1
 

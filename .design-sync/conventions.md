@@ -1,4 +1,4 @@
-## Bang Inventory UI — build conventions
+## QGPT Production Tracker UI — build conventions
 
 **No wrapper needed.** Every component is a plain, standalone React function — there is no ThemeProvider, context, or root wrapper to set up. Just import and render.
 

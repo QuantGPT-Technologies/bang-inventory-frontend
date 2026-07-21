@@ -1,4 +1,4 @@
-# Bang Inventory — Next.js UI Implementation Guide
+# QGPT Production Tracker — Next.js UI Implementation Guide
 
 **API base URL (dev):** `http://localhost:8080/api/v1`  
 **Auth:** JWT Bearer token, 24-hour lifetime  

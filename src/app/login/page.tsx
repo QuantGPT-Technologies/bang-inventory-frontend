@@ -96,7 +96,7 @@ function LoginForm() {
             <Factory size={28} />
           </div>
           <h1 className="text-3xl font-bold text-[var(--ink)]">
-            Bang Inventory
+            QGPT
           </h1>
           <p className="text-base text-[var(--ink-muted)] mt-1">
             Track your factory&apos;s stock and production
@@ -149,7 +149,7 @@ function LoginForm() {
 
         {/* Footer */}
         <p className="text-center text-sm text-[var(--ink-muted)] mt-6">
-          Bang Inventory
+          QGPT Production Tracker
         </p>
       </div>
     </div>

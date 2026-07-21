@@ -92,11 +92,11 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
         <div className="px-4 py-4 border-b border-white/10 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-lg bg-[var(--accent)] flex items-center justify-center text-white font-bold text-base flex-shrink-0">
-              B
+              Q
             </div>
             <div>
               <p className="font-bold text-base text-white leading-tight">
-                Bang Inventory
+                QGPT
               </p>
               <p className="text-xs text-white/45 leading-tight">Production Tracker</p>
             </div>

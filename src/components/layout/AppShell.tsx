@@ -57,7 +57,7 @@ export function AppShell({ children, fullBleed = false }: { children: React.Reac
               <Menu size={24} />
             </button>
             <span className="font-bold text-base text-[var(--ink)]">
-              Bang Inventory
+              QGPT Production Tracker
             </span>
           </div>
           <ThemeToggle className="!px-2" />
