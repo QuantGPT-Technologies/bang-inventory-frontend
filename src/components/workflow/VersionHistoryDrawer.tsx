@@ -42,7 +42,7 @@ export function VersionHistoryDrawer({ templateId, onClose }: { templateId: numb
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-[var(--ink)]/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-sm bg-[var(--paper)] border-l border-[var(--border)] shadow-xl flex flex-col h-full">
+      <div className="relative w-full max-w-sm bg-[var(--paper)] border-l border-[var(--border)] shadow-xl flex flex-col h-full isolate [transform:translateZ(0)]">
         <div className="flex items-center justify-between gap-2 px-4 py-4 border-b border-[var(--border-light)] flex-shrink-0">
           <h3 className="text-sm font-semibold text-[var(--ink)]">
             Version History

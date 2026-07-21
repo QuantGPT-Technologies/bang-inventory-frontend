@@ -47,6 +47,13 @@ export function Modal({ open, onClose, title, subtitle, children, size = 'md', f
           'border border-[var(--border)]',
           'flex flex-col max-h-[90vh]',
           'animate-[modal-panel-in_150ms_ease-out]',
+          // Safari/WebKit: a `backdrop-filter` sibling (the blurred overlay) combined with this
+          // panel's own opacity/transform keyframe animation can leave Safari without a proper
+          // compositing layer for the panel, so the blurred backdrop shows through it instead of
+          // the panel's own background -- fine on Chromium/Windows, transparent on macOS Safari.
+          // Forcing GPU compositing (isolate + translateZ) makes Safari paint the panel in its
+          // own layer, which fixes it without affecting Chromium/Firefox rendering.
+          'isolate [transform:translateZ(0)]',
           sizeClass
         )}
       >
