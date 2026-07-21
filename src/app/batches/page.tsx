@@ -85,8 +85,9 @@ export default function BatchesPage() {
     {
       key: 'batch_number',
       header: 'Batch #',
+      primary: true,
       render: (row: Batch) => (
-        <span className="font-mono font-medium text-[var(--accent)]">{row.batch_number}</span>
+        <span className="font-mono font-bold text-base text-[var(--accent)]">{row.batch_number}</span>
       ),
     },
     { key: 'total_blend_qty', header: 'Total Qty', render: (row: Batch) => formatQty(row.total_blend_qty, row.unit) },
@@ -97,7 +98,7 @@ export default function BatchesPage() {
         <Badge variant={batchStatusBadge(row.status)}>{BATCH_STATUS_LABELS[row.status] || row.status}</Badge>
       ),
     },
-    { key: 'created_at', header: 'Created', render: (row: Batch) => formatDate(row.created_at) },
+    { key: 'created_at', header: 'Created', hideInCard: true, render: (row: Batch) => formatDate(row.created_at) },
   ];
 
   const canCreate = canAccess(user, 'batches', 'create');
@@ -106,11 +107,11 @@ export default function BatchesPage() {
     <AppShell>
       <PageHeader
         title="Batches"
-        subtitle="Blending batches and production runs"
+        subtitle="Mixing batches and production runs"
         action={
           canCreate && (
             <Button onClick={() => setShowCreate(true)}>
-              <Plus size={14} /> New Batch
+              <Plus size={18} /> New Batch
             </Button>
           )
         }
@@ -118,14 +119,14 @@ export default function BatchesPage() {
 
       <Card noPadding>
         {/* Filters */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border-light)]">
-          <div className="relative w-56">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-muted)] pointer-events-none" />
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border)] flex-wrap">
+          <div className="relative w-64">
+            <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--ink-muted)] pointer-events-none" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search batch #"
-              className="pl-8 py-1.5 text-xs"
+              className="pl-11"
             />
           </div>
           <Select
@@ -135,7 +136,7 @@ export default function BatchesPage() {
             ]}
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-            className="w-40 text-xs py-1.5"
+            className="w-48"
             placeholder=""
           />
         </div>
@@ -225,7 +226,7 @@ function CreateBatchModal({
     setLoading(true);
     try {
       const res = await batchesApi.create(result.data);
-      toast.success('Batch created successfully');
+      toast.success('Batch created');
       onCreated(res.data.data.id);
     } catch (err) {
       const info = parseApiError(err);
@@ -241,7 +242,7 @@ function CreateBatchModal({
       open
       onClose={onClose}
       title="New Batch"
-      subtitle="Create a blending batch"
+      subtitle="Start a new mixing batch"
       size="lg"
       footer={
         <>
@@ -255,7 +256,7 @@ function CreateBatchModal({
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <Input
-            label="Total Blend Qty"
+            label="Total Amount to Mix"
             type="number"
             step="0.001"
             min="0"
@@ -275,16 +276,16 @@ function CreateBatchModal({
 
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="text-xs font-medium text-[var(--ink-light)] uppercase tracking-wide">
+            <label className="text-sm font-bold text-[var(--ink-light)] uppercase tracking-wide">
               Raw Materials
             </label>
             <Button variant="ghost" size="sm" type="button" onClick={addMaterial} disabled={noMaterialsAvailable}>
-              <Plus size={12} /> Add
+              <Plus size={16} /> Add
             </Button>
           </div>
           {noMaterialsAvailable && (
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mb-2">
-              No raw materials exist yet. Create one under Raw Materials before starting a batch.
+            <p className="text-sm font-semibold text-[var(--warning)] bg-[var(--warning-tint)] border border-[var(--warning)] rounded-lg px-3 py-2 mb-2">
+              No raw materials yet. Add one under Raw Materials first.
             </p>
           )}
           <div className="space-y-2">
@@ -296,7 +297,6 @@ function CreateBatchModal({
                     value={m.raw_material_id || ''}
                     onChange={(e) => updateMaterial(i, 'raw_material_id', Number(e.target.value))}
                     placeholder="Select material…"
-                    className="text-xs py-1.5"
                   />
                 </div>
                 <div className="w-28">
@@ -307,24 +307,22 @@ function CreateBatchModal({
                     value={m.planned_qty}
                     onChange={(e) => updateMaterial(i, 'planned_qty', e.target.value)}
                     placeholder="Qty"
-                    className="py-1.5 text-xs"
                   />
                 </div>
                 <button
                   type="button"
                   onClick={() => removeMaterial(i)}
                   disabled={materials.length === 1}
-                  title="Remove material"
-                  aria-label="Remove material"
-                  className="text-[var(--ink-muted)] hover:text-red-600 pb-1 disabled:opacity-30 disabled:hover:text-[var(--ink-muted)]"
+                  className="flex items-center gap-1.5 text-sm font-bold text-[var(--ink-muted)] hover:text-[var(--danger)] min-h-[52px] px-2.5 disabled:opacity-30 disabled:hover:text-[var(--ink-muted)]"
                 >
-                  <X size={14} />
+                  <X size={18} />
+                  Remove
                 </button>
               </div>
             ))}
           </div>
-          {errors.materials && <p className="text-xs text-red-600 mt-1.5">{errors.materials}</p>}
-          <p className="text-xs text-[var(--ink-muted)] mt-1.5">
+          {errors.materials && <p className="text-sm font-semibold text-[var(--danger)] mt-1.5">{errors.materials}</p>}
+          <p className="text-sm text-[var(--ink-muted)] mt-1.5">
             Materials total: <span className="font-mono">{plannedTotal.toFixed(3)}</span> {unit}
           </p>
         </div>
@@ -333,7 +331,7 @@ function CreateBatchModal({
           label="Notes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Optional notes…"
+          placeholder="Notes (optional)"
           rows={2}
           maxLength={1000}
         />

@@ -9,23 +9,24 @@ interface BadgeProps {
 }
 
 const variantClasses: Record<BadgeVariant, string> = {
-  default: 'bg-[var(--paper-dark)] text-[var(--ink)] border-[var(--border)]',
-  success: 'bg-green-100 text-green-800 border-green-200',
-  warning: 'bg-amber-100 text-amber-800 border-amber-200',
-  danger: 'bg-red-100 text-red-700 border-red-200',
-  info: 'bg-blue-100 text-blue-800 border-blue-200',
-  muted: 'bg-[var(--paper-dark)] text-[var(--ink-muted)] border-[var(--border-light)]',
+  default: 'bg-[var(--paper-sunken)] text-[var(--ink)] border-[var(--border)]',
+  success: 'bg-[var(--success-tint)] text-[var(--success)] border-transparent',
+  warning: 'bg-[var(--warning-tint)] text-[var(--warning)] border-transparent',
+  danger: 'bg-[var(--danger-tint)] text-[var(--danger)] border-transparent',
+  info: 'bg-[var(--info-tint)] text-[var(--info)] border-transparent',
+  muted: 'bg-[var(--paper-sunken)] text-[var(--ink-muted)] border-[var(--border)]',
 };
 
 export function Badge({ children, variant = 'default', className }: BadgeProps) {
   return (
     <span
       className={cn(
-        'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border',
-        variantClasses[variant],
-        className
+        'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-bold border',
+        className,
+        variantClasses[variant]
       )}
     >
+      <span className="w-1.5 h-1.5 rounded-full bg-current flex-shrink-0" aria-hidden="true" />
       {children}
     </span>
   );

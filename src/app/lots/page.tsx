@@ -62,15 +62,16 @@ export default function LotsPage() {
     {
       key: 'lot_number',
       header: 'Lot #',
+      primary: true,
       render: (row: Lot) => (
-        <span className="font-mono font-medium text-[var(--accent)]">{row.lot_number}</span>
+        <span className="font-mono font-bold text-base text-[var(--accent)]">{row.lot_number}</span>
       ),
     },
     {
       key: 'batch_number',
       header: 'Batch',
       render: (row: Lot) => (
-        <span className="font-mono text-xs text-[var(--ink-muted)]">{row.batch_number || `#${row.batch_id}`}</span>
+        <span className="font-mono text-sm text-[var(--ink-muted)]">{row.batch_number || `#${row.batch_id}`}</span>
       ),
     },
     { key: 'sku_code', header: 'SKU', render: (row: Lot) => row.sku_code || `#${row.sku_id}` },
@@ -87,7 +88,7 @@ export default function LotsPage() {
         <Badge variant={lotStatusBadge(row.status)}>{LOT_STATUS_LABELS[row.status] || row.status}</Badge>
       ),
     },
-    { key: 'created_at', header: 'Created', render: (row: Lot) => formatDate(row.created_at) },
+    { key: 'created_at', header: 'Created', hideInCard: true, render: (row: Lot) => formatDate(row.created_at) },
   ];
 
   const stepOptions = Object.entries(STEP_LABELS).map(([v, l]) => ({ value: v, label: l }));
@@ -96,37 +97,35 @@ export default function LotsPage() {
     <AppShell>
       <PageHeader
         title="Lots"
-        subtitle="Individual production lots progressing through steps"
+        subtitle="Track each lot as it moves through production"
       />
 
       <Card noPadding>
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border-light)]">
-          <div className="relative w-56">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-muted)] pointer-events-none" />
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border)] flex-wrap">
+          <div className="relative w-64">
+            <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--ink-muted)] pointer-events-none" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search lot #, SKU, or batch #"
-              className="pl-8 py-1.5 text-xs"
+              className="pl-11"
             />
           </div>
           <Select
             options={[
               { value: '', label: 'All Statuses' },
-              { value: 'created', label: 'Created' },
-              { value: 'in_progress', label: 'In Progress' },
-              { value: 'completed', label: 'Completed' },
+              ...Object.entries(LOT_STATUS_LABELS).map(([v, l]) => ({ value: v, label: l })),
             ]}
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-            className="w-36 text-xs py-1.5"
+            className="w-44"
             placeholder=""
           />
           <Select
             options={[{ value: '', label: 'All Steps' }, ...stepOptions]}
             value={stepFilter}
             onChange={(e) => { setStepFilter(e.target.value); setPage(1); }}
-            className="w-36 text-xs py-1.5"
+            className="w-44"
             placeholder=""
           />
         </div>

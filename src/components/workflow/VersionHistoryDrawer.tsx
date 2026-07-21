@@ -44,7 +44,7 @@ export function VersionHistoryDrawer({ templateId, onClose }: { templateId: numb
       <div className="absolute inset-0 bg-[var(--ink)]/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-sm bg-[var(--paper)] border-l border-[var(--border)] shadow-xl flex flex-col h-full">
         <div className="flex items-center justify-between gap-2 px-4 py-4 border-b border-[var(--border-light)] flex-shrink-0">
-          <h3 className="text-sm font-semibold text-[var(--ink)]" style={{ fontFamily: 'Playfair Display, serif' }}>
+          <h3 className="text-sm font-semibold text-[var(--ink)]">
             Version History
           </h3>
           <button onClick={onClose} className="text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors">

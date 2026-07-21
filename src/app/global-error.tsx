@@ -17,9 +17,9 @@ export default function GlobalRootError({
       <body style={{ fontFamily: 'system-ui, sans-serif' }}>
         <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ textAlign: 'center', maxWidth: 380 }}>
-            <h1 style={{ fontSize: 24, fontWeight: 700 }}>Application error</h1>
+            <h1 style={{ fontSize: 24, fontWeight: 700 }}>Something Went Wrong</h1>
             <p style={{ fontSize: 14, color: '#666', marginTop: 8 }}>
-              A critical error occurred. Please try reloading the page.
+              The app had a problem. Please reload the page.
             </p>
             <button
               onClick={reset}

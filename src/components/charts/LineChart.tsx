@@ -88,8 +88,8 @@ export function LineChart({
       {series.length > 1 && (
         <div className="flex items-center gap-4 mb-3 flex-wrap">
           {series.map((s, i) => (
-            <div key={s.key} className="flex items-center gap-1.5 text-xs text-[var(--ink-muted)]">
-              <span className="inline-block w-3 h-[2px] rounded-full" style={{ backgroundColor: colors[i] }} />
+            <div key={s.key} className="flex items-center gap-2 text-sm font-semibold text-[var(--ink-muted)]">
+              <span className="inline-block w-3.5 h-[3px] rounded-full" style={{ backgroundColor: colors[i] }} />
               {s.label}
             </div>
           ))}
@@ -162,19 +162,19 @@ export function LineChart({
 
         {hover && (
           <div
-            className="absolute top-2 z-10 bg-[var(--ink)] text-[var(--paper)] text-[11px] px-2.5 py-1.5 rounded pointer-events-none shadow-[0_2px_6px_var(--shadow)] min-w-[120px]"
+            className="absolute top-2 z-10 bg-[var(--ink)] text-[var(--paper)] text-sm px-3 py-2 rounded-lg pointer-events-none shadow-[0_2px_6px_var(--shadow)] min-w-[130px]"
             style={{
               left: tooltipOnLeft ? undefined : `${((PADDING.left + hoverX) / width) * 100}%`,
               right: tooltipOnLeft ? `${100 - ((PADDING.left + hoverX) / width) * 100}%` : undefined,
               transform: tooltipOnLeft ? 'translateX(8px)' : 'translateX(8px)',
             }}
           >
-            <div className="font-semibold mb-0.5">{hover.x}</div>
+            <div className="font-bold mb-1">{hover.x}</div>
             {series.map((s, si) => (
               <div key={s.key} className="flex items-center gap-1.5 opacity-90">
                 <span className="inline-block w-2.5 h-[2px]" style={{ backgroundColor: colors[si] }} />
                 <span>{s.label}:</span>
-                <span className="font-semibold ml-auto">{formatValue(hover.values[s.key] ?? 0)}</span>
+                <span className="font-bold ml-auto">{formatValue(hover.values[s.key] ?? 0)}</span>
               </div>
             ))}
           </div>

@@ -13,7 +13,7 @@ import Select from '@/components/ui/Select';
 import { toast } from '@/components/ui/Toast';
 import { batchesApi, skusApi } from '@/lib/api';
 import { Batch, SKU, BatchWorkflowDetail } from '@/lib/types';
-import { cn, formatDateTime, formatQty, BATCH_STATUS_LABELS, LOT_STATUS_LABELS, STEP_STATUS_LABELS, getNodeLabel, parseApiError } from '@/lib/utils';
+import { cn, formatDateTime, formatQty, BATCH_STATUS_LABELS, LOT_STATUS_LABELS, STEP_STATUS_LABELS, SCRAP_TYPE_LABELS, getNodeLabel, parseApiError } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import {
@@ -91,7 +91,7 @@ export default function BatchDetailPage() {
   // Only the FIRST load blanks the page -- a reload after an action keeps everything on screen
   // instead of tearing it down and repainting, which otherwise makes every single action feel
   // like a full page reload. A reload that fails still surfaces via the toast effect above.
-  if (loading && !batch) return <AppShell><div className="p-8 text-center text-[var(--ink-muted)]">Loading…</div></AppShell>;
+  if (loading && !batch) return <AppShell><div className="p-8 text-center text-base text-[var(--ink-muted)]">Loading…</div></AppShell>;
 
   if (error && !batch) {
     return (
@@ -104,7 +104,7 @@ export default function BatchDetailPage() {
     );
   }
 
-  if (!batch) return <AppShell><div className="p-8 text-center text-[var(--ink-muted)]">Batch not found.</div></AppShell>;
+  if (!batch) return <AppShell><div className="p-8 text-center text-base text-[var(--ink-muted)]">Batch not found.</div></AppShell>;
 
   const canBlend = canAccess(user, 'batches', 'blend');
   const canSplit = canAccess(user, 'batches', 'split');
@@ -118,18 +118,18 @@ export default function BatchDetailPage() {
         action={
           <div className="flex gap-2">
             {batch.status === 'created' && canBlend && (
-              <Button size="sm" onClick={() => setShowBlend(true)}>
-                <Play size={13} /> Start Blending
+              <Button onClick={() => setShowBlend(true)}>
+                <Play size={18} /> Start Mixing
               </Button>
             )}
             {batch.status === 'blending' && canBlend && (
-              <Button size="sm" onClick={() => setShowCompleteBlend(true)}>
-                <CheckCircle size={13} /> Complete Blend
+              <Button onClick={() => setShowCompleteBlend(true)}>
+                <CheckCircle size={18} /> Finish Mixing
               </Button>
             )}
             {batch.status === 'blended' && canSplit && (
-              <Button size="sm" onClick={() => setShowSplit(true)}>
-                <Split size={13} /> Split into Lots
+              <Button onClick={() => setShowSplit(true)}>
+                <Split size={18} /> Split into Lots
               </Button>
             )}
           </div>
@@ -139,9 +139,9 @@ export default function BatchDetailPage() {
       <div className={cn('grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 transition-opacity duration-150', loading && 'opacity-60')}>
         {/* Details */}
         <Card title="Batch Details" className="lg:col-span-1">
-          <dl className="space-y-3 text-sm">
+          <dl className="space-y-3 text-base">
             <DL label="Batch Number">
-              <span className="font-mono font-semibold">{batch.batch_number}</span>
+              <span className="font-mono font-bold">{batch.batch_number}</span>
             </DL>
             <DL label="Status">
               <Badge variant={batchStatusBadge(batch.status)}>
@@ -151,7 +151,7 @@ export default function BatchDetailPage() {
             <DL label="Total Qty">{formatQty(batch.total_blend_qty, batch.unit)}</DL>
             {totalScrap > 0 && (
               <DL label="Total Scrap">
-                <span className="text-amber-700">{formatQty(totalScrap, batch.unit)}</span>
+                <span className="text-[var(--warning)] font-semibold">{formatQty(totalScrap, batch.unit)}</span>
               </DL>
             )}
             <DL label="Created">{formatDateTime(batch.created_at)}</DL>
@@ -162,22 +162,22 @@ export default function BatchDetailPage() {
         {/* Materials */}
         <Card title="Raw Materials" className="lg:col-span-2">
           {!batch.materials?.length ? (
-            <p className="text-sm text-[var(--ink-muted)] italic">No materials recorded.</p>
+            <p className="text-base text-[var(--ink-muted)] italic">No materials recorded.</p>
           ) : (
-            <table className="w-full text-sm">
+            <table className="w-full text-base">
               <thead>
-                <tr className="border-b border-[var(--border-light)]">
-                  <th className="text-left py-2 text-xs uppercase tracking-wide text-[var(--ink-muted)]">Material</th>
-                  <th className="text-right py-2 text-xs uppercase tracking-wide text-[var(--ink-muted)]">Planned Qty</th>
-                  <th className="text-right py-2 text-xs uppercase tracking-wide text-[var(--ink-muted)]">Actual Qty</th>
+                <tr className="border-b border-[var(--border)]">
+                  <th className="text-left py-2 text-sm font-bold uppercase tracking-wide text-[var(--ink-muted)]">Material</th>
+                  <th className="text-right py-2 text-sm font-bold uppercase tracking-wide text-[var(--ink-muted)]">Planned</th>
+                  <th className="text-right py-2 text-sm font-bold uppercase tracking-wide text-[var(--ink-muted)]">Actual</th>
                 </tr>
               </thead>
               <tbody>
                 {batch.materials.map((m, i) => (
-                  <tr key={i} className="border-b border-[var(--border-light)] last:border-0">
-                    <td className="py-2">{m.material_name || `Material #${m.raw_material_id}`}</td>
-                    <td className="py-2 text-right font-mono">{formatQty(m.planned_qty, m.unit || batch.unit)}</td>
-                    <td className="py-2 text-right font-mono text-[var(--ink-muted)]">
+                  <tr key={i} className="border-b border-[var(--border)] last:border-0">
+                    <td className="py-2.5">{m.material_name || `Material #${m.raw_material_id}`}</td>
+                    <td className="py-2.5 text-right font-mono">{formatQty(m.planned_qty, m.unit || batch.unit)}</td>
+                    <td className="py-2.5 text-right font-mono text-[var(--ink-muted)]">
                       {m.actual_qty != null ? formatQty(m.actual_qty, m.unit || batch.unit) : '—'}
                     </td>
                   </tr>
@@ -190,20 +190,20 @@ export default function BatchDetailPage() {
         {/* Scrap */}
         {batch.scrap && batch.scrap.length > 0 && (
           <Card title="Scrap" className="lg:col-span-3">
-            <table className="w-full text-sm">
+            <table className="w-full text-base">
               <thead>
-                <tr className="border-b border-[var(--border-light)]">
-                  <th className="text-left py-2 text-xs uppercase tracking-wide text-[var(--ink-muted)]">Type</th>
-                  <th className="text-right py-2 text-xs uppercase tracking-wide text-[var(--ink-muted)]">Quantity</th>
-                  <th className="text-left py-2 text-xs uppercase tracking-wide text-[var(--ink-muted)]">Notes</th>
+                <tr className="border-b border-[var(--border)]">
+                  <th className="text-left py-2 text-sm font-bold uppercase tracking-wide text-[var(--ink-muted)]">Type</th>
+                  <th className="text-right py-2 text-sm font-bold uppercase tracking-wide text-[var(--ink-muted)]">Quantity</th>
+                  <th className="text-left py-2 text-sm font-bold uppercase tracking-wide text-[var(--ink-muted)]">Notes</th>
                 </tr>
               </thead>
               <tbody>
                 {batch.scrap.map((s) => (
-                  <tr key={s.id} className="border-b border-[var(--border-light)] last:border-0">
-                    <td className="py-2 capitalize">{s.scrap_type}</td>
-                    <td className="py-2 text-right font-mono">{formatQty(s.quantity, s.unit)}</td>
-                    <td className="py-2 text-[var(--ink-muted)]">{s.notes || '—'}</td>
+                  <tr key={s.id} className="border-b border-[var(--border)] last:border-0">
+                    <td className="py-2.5">{SCRAP_TYPE_LABELS[s.scrap_type] || s.scrap_type.replace(/_/g, ' ')}</td>
+                    <td className="py-2.5 text-right font-mono">{formatQty(s.quantity, s.unit)}</td>
+                    <td className="py-2.5 text-[var(--ink-muted)]">{s.notes || '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -213,7 +213,7 @@ export default function BatchDetailPage() {
 
         {/* Batch's own workflow (blend -> split_into_lots) plus every lot instance the fan-out spawned */}
         {workflow && (
-          <Card title="Batch Workflow" className="lg:col-span-3">
+          <Card title="Batch Steps" className="lg:col-span-3">
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-2 flex-wrap">
                 {workflow.nodes.map((node, i) => {
@@ -221,13 +221,13 @@ export default function BatchDetailPage() {
                   const color = NODE_TYPE_COLORS[node.node_type];
                   return (
                     <div key={node.id} className="flex items-center gap-2">
-                      <div className="flex items-center gap-2 px-3 py-2 rounded-md border border-[var(--border-light)] bg-[var(--paper)]">
-                        <Icon size={14} style={{ color }} className="flex-shrink-0" />
-                        <span className="text-sm font-medium text-[var(--ink)]">{getNodeLabel(node.node_key)}</span>
+                      <div className="flex items-center gap-2 px-3 py-2.5 min-h-11 rounded-lg border border-[var(--border)] bg-[var(--paper-sunken)]">
+                        <Icon size={18} style={{ color }} className="flex-shrink-0" />
+                        <span className="text-base font-semibold text-[var(--ink)]">{getNodeLabel(node.node_key)}</span>
                         <Badge variant={stepStatusBadge(node.status)}>{STEP_STATUS_LABELS[node.status] || node.status}</Badge>
                       </div>
                       {i < workflow.nodes.length - 1 && (
-                        <ArrowRight size={14} className="text-[var(--ink-muted)] flex-shrink-0" />
+                        <ArrowRight size={18} className="text-[var(--ink-muted)] flex-shrink-0" />
                       )}
                     </div>
                   );
@@ -236,19 +236,19 @@ export default function BatchDetailPage() {
 
               {workflow.child_lots.length > 0 && (
                 <div>
-                  <div className="text-xs uppercase tracking-wide text-[var(--ink-muted)] mb-2">
-                    Spawned Lots
+                  <div className="text-sm font-bold uppercase tracking-wide text-[var(--ink-muted)] mb-2">
+                    Lots Created
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                     {workflow.child_lots.map((cl) => (
                       <Link
                         key={cl.lot_id}
                         href={`/lots/${cl.lot_id}`}
-                        className="flex items-center justify-between gap-2 px-3 py-2 rounded-md border border-[var(--border-light)] hover:bg-[var(--paper-dark)] transition-colors"
+                        className="flex items-center justify-between gap-2 px-3 py-2.5 min-h-11 rounded-lg border border-[var(--border)] hover:bg-[var(--paper-sunken)] transition-colors"
                       >
                         <div className="flex flex-col min-w-0">
-                          <span className="font-mono text-sm font-semibold text-[var(--accent)]">{cl.lot_number}</span>
-                          <span className="text-xs text-[var(--ink-muted)] truncate">
+                          <span className="font-mono text-base font-bold text-[var(--accent)]">{cl.lot_number}</span>
+                          <span className="text-sm text-[var(--ink-muted)] truncate">
                             {cl.current_node_key ? getNodeLabel(cl.current_node_key) : '—'}
                           </span>
                         </div>
@@ -265,24 +265,24 @@ export default function BatchDetailPage() {
         {/* Lots */}
         {batch.lots && batch.lots.length > 0 && (
           <Card title="Lots" className="lg:col-span-3" noPadding>
-            <div className="divide-y divide-[var(--border-light)]">
+            <div className="divide-y divide-[var(--border)]">
               {batch.lots.map((lot) => (
                 <Link
                   key={lot.id}
                   href={`/lots/${lot.id}`}
-                  className="flex items-center justify-between px-4 py-3 hover:bg-[var(--paper-dark)] transition-colors"
+                  className="flex items-center justify-between px-4 py-3.5 min-h-11 hover:bg-[var(--paper-sunken)] transition-colors"
                 >
                   <div className="flex items-center gap-4">
-                    <span className="font-mono text-sm font-semibold text-[var(--accent)]">{lot.lot_number}</span>
-                    <span className="text-sm text-[var(--ink-muted)]">{lot.sku_code}</span>
-                    <span className="text-sm">{formatQty(lot.quantity, lot.unit)}</span>
+                    <span className="font-mono text-base font-bold text-[var(--accent)]">{lot.lot_number}</span>
+                    <span className="text-base text-[var(--ink-muted)]">{lot.sku_code}</span>
+                    <span className="text-base">{formatQty(lot.quantity, lot.unit)}</span>
                   </div>
                   <div className="flex items-center gap-3">
                     {lot.current_step && (
-                      <span className="text-xs text-[var(--ink-muted)]">{getNodeLabel(lot.current_step)}</span>
+                      <span className="text-sm text-[var(--ink-muted)]">{getNodeLabel(lot.current_step)}</span>
                     )}
                     <Badge variant={lotStatusBadge(lot.status)}>{LOT_STATUS_LABELS[lot.status] || lot.status}</Badge>
-                    <ArrowRight size={14} className="text-[var(--ink-muted)]" />
+                    <ArrowRight size={18} className="text-[var(--ink-muted)]" />
                   </div>
                 </Link>
               ))}
@@ -320,7 +320,7 @@ export default function BatchDetailPage() {
 function DL({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-2">
-      <dt className="text-xs uppercase tracking-wide text-[var(--ink-muted)] flex-shrink-0">{label}</dt>
+      <dt className="text-sm font-bold uppercase tracking-wide text-[var(--ink-muted)] flex-shrink-0">{label}</dt>
       <dd className="text-right">{children}</dd>
     </div>
   );
@@ -343,13 +343,13 @@ function StartBlendModal({ batch, onClose, onDone }: { batch: Batch; onClose: ()
   const handleConfirm = async () => {
     if (loading) return;
     if (!hasMaterials) {
-      toast.error('This batch has no materials recorded; cannot start blending.');
+      toast.error('This batch has no materials. You cannot start mixing.');
       return;
     }
     setLoading(true);
     try {
       await batchesApi.startBlend(batch.id);
-      toast.success('Blending started');
+      toast.success('Mixing started');
       onDone();
     } catch (err) {
       handleWorkflowError(err, onDone);
@@ -359,18 +359,17 @@ function StartBlendModal({ batch, onClose, onDone }: { batch: Batch; onClose: ()
   };
 
   return (
-    <Modal open onClose={onClose} title="Start Blending"
-      footer={<><Button variant="ghost" onClick={onClose} disabled={loading}>Cancel</Button><Button loading={loading} disabled={loading || !hasMaterials} onClick={handleConfirm}>Start Blend</Button></>}
+    <Modal open onClose={onClose} title="Start Mixing"
+      footer={<><Button variant="ghost" onClick={onClose} disabled={loading}>Cancel</Button><Button loading={loading} disabled={loading || !hasMaterials} onClick={handleConfirm}>Start Mixing</Button></>}
     >
       {!hasMaterials ? (
-        <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-          This batch has no raw materials recorded.
+        <p className="text-base font-semibold text-[var(--warning)] bg-[var(--warning-tint)] border border-[var(--warning)] rounded-lg px-3 py-2.5">
+          This batch has no raw materials.
         </p>
       ) : (
-        <p className="text-sm text-[var(--ink-muted)]">
-          Start blending for batch <strong>{batch.batch_number}</strong>? This moves the batch into the{' '}
-          <strong>blending</strong> state. Actual material quantities and any spillage scrap are recorded when you
-          complete blending.
+        <p className="text-base text-[var(--ink-muted)]">
+          Start mixing batch <strong className="text-[var(--ink)]">{batch.batch_number}</strong>?
+          You will enter the real amounts used when you finish mixing.
         </p>
       )}
     </Modal>
@@ -397,7 +396,7 @@ function CompleteBlendModal({ batch, onClose, onDone }: { batch: Batch; onClose:
     if (loading) return;
 
     if (!hasMaterials) {
-      toast.error('This batch has no materials recorded.');
+      toast.error('This batch has no materials.');
       return;
     }
 
@@ -417,8 +416,8 @@ function CompleteBlendModal({ batch, onClose, onDone }: { batch: Batch; onClose:
     }
     const scrapTotal = result.data.scrap.reduce((s, e) => s + e.quantity, 0);
     if (scrapTotal > batch.total_blend_qty) {
-      setErrors({ scrap: `Total scrap cannot exceed the batch total (${formatQty(batch.total_blend_qty, batch.unit)})` });
-      toast.error('Scrap quantity exceeds the batch total.');
+      setErrors({ scrap: `Scrap cannot be more than the batch total (${formatQty(batch.total_blend_qty, batch.unit)})` });
+      toast.error('Scrap amount is more than the batch total.');
       return;
     }
     setErrors({});
@@ -426,7 +425,7 @@ function CompleteBlendModal({ batch, onClose, onDone }: { batch: Batch; onClose:
     setLoading(true);
     try {
       await batchesApi.completeBlend(batch.id, result.data);
-      toast.success('Blending completed');
+      toast.success('Mixing finished');
       onDone();
     } catch (err) {
       handleWorkflowError(err, onDone);
@@ -436,68 +435,71 @@ function CompleteBlendModal({ batch, onClose, onDone }: { batch: Batch; onClose:
   };
 
   return (
-    <Modal open onClose={onClose} title="Complete Blending" subtitle="Record actual quantities and any spillage scrap" size="lg"
-      footer={<><Button variant="ghost" onClick={onClose} disabled={loading}>Cancel</Button><Button loading={loading} disabled={loading || !hasMaterials} onClick={handleSubmit as unknown as React.MouseEventHandler}>Complete</Button></>}
+    <Modal open onClose={onClose} title="Finish Mixing" subtitle="Enter the real amounts used and any spilled material" size="lg"
+      footer={<><Button variant="ghost" onClick={onClose} disabled={loading}>Cancel</Button><Button loading={loading} disabled={loading || !hasMaterials} onClick={handleSubmit as unknown as React.MouseEventHandler}>Finish</Button></>}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="text-xs font-medium text-[var(--ink-light)] uppercase tracking-wide block mb-2">
-            Actual Material Quantities
+          <label className="text-sm font-bold text-[var(--ink-light)] uppercase tracking-wide block mb-2">
+            Real Amounts Used
           </label>
           {!hasMaterials ? (
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
-              This batch has no raw materials recorded.
+            <p className="text-sm font-semibold text-[var(--warning)] bg-[var(--warning-tint)] border border-[var(--warning)] rounded-lg px-3 py-2">
+              This batch has no raw materials.
             </p>
           ) : (
             <div className="space-y-2">
               {(batch.materials || []).map((m) => (
                 <div key={m.raw_material_id} className="flex items-center gap-3">
-                  <span className="flex-1 text-sm">{m.material_name || `Material #${m.raw_material_id}`}</span>
-                  <span className="text-xs text-[var(--ink-muted)] w-20 text-right">Plan: {formatQty(m.planned_qty)}</span>
+                  <span className="flex-1 text-base">{m.material_name || `Material #${m.raw_material_id}`}</span>
+                  <span className="text-sm text-[var(--ink-muted)] w-24 text-right">Plan: {formatQty(m.planned_qty)}</span>
                   <Input
                     type="number" step="0.001" min="0"
                     value={actualQtys[m.raw_material_id] ?? String(m.planned_qty)}
                     onChange={(e) => setActualQtys((q) => ({ ...q, [m.raw_material_id]: e.target.value }))}
-                    className="w-28 py-1.5 text-xs"
-                    placeholder="Actual qty"
+                    className="w-32"
+                    placeholder="Real amount"
                   />
                 </div>
               ))}
             </div>
           )}
-          {errors.actual_materials && <p className="text-xs text-red-600 mt-1.5">{errors.actual_materials}</p>}
+          {errors.actual_materials && <p className="text-sm font-semibold text-[var(--danger)] mt-1.5">{errors.actual_materials}</p>}
         </div>
 
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="text-xs font-medium text-[var(--ink-light)] uppercase tracking-wide">
-              Spillage Scrap (optional)
+            <label className="text-sm font-bold text-[var(--ink-light)] uppercase tracking-wide">
+              Spilled Material (optional)
             </label>
             <Button variant="ghost" size="sm" type="button" onClick={addScrapRow}>
-              <Plus size={12} /> Add
+              <Plus size={16} /> Add
             </Button>
           </div>
           {scrapRows.length === 0 ? (
-            <p className="text-xs text-[var(--ink-muted)] italic">No spillage recorded.</p>
+            <p className="text-base text-[var(--ink-muted)] italic">No spilled material.</p>
           ) : (
             <div className="space-y-2">
               {scrapRows.map((row, i) => (
                 <div key={i} className="flex gap-2 items-end">
                   <div className="w-28">
-                    <Input type="number" step="0.001" min="0" value={row.quantity} onChange={(e) => updateScrapRow(i, 'quantity', e.target.value)} placeholder="Qty" className="py-1.5 text-xs" />
+                    <Input type="number" step="0.001" min="0" value={row.quantity} onChange={(e) => updateScrapRow(i, 'quantity', e.target.value)} placeholder="Qty" />
                   </div>
                   <div className="w-20">
-                    <Input value={row.unit} onChange={(e) => updateScrapRow(i, 'unit', e.target.value)} placeholder={batch.unit} className="py-1.5 text-xs" />
+                    <Input value={row.unit} onChange={(e) => updateScrapRow(i, 'unit', e.target.value)} placeholder={batch.unit} />
                   </div>
                   <div className="flex-1">
-                    <Input value={row.notes} onChange={(e) => updateScrapRow(i, 'notes', e.target.value)} placeholder="Notes (optional)" className="py-1.5 text-xs" />
+                    <Input value={row.notes} onChange={(e) => updateScrapRow(i, 'notes', e.target.value)} placeholder="Notes (optional)" />
                   </div>
-                  <button type="button" onClick={() => removeScrapRow(i)} title="Remove scrap entry" aria-label="Remove scrap entry" className="text-[var(--ink-muted)] hover:text-red-600 pb-1"><X size={14} /></button>
+                  <button type="button" onClick={() => removeScrapRow(i)} className="flex items-center gap-1.5 text-sm font-bold text-[var(--ink-muted)] hover:text-[var(--danger)] min-h-[52px] px-2.5">
+                    <X size={18} />
+                    Remove
+                  </button>
                 </div>
               ))}
             </div>
           )}
-          {errors.scrap && <p className="text-xs text-red-600 mt-1.5">{errors.scrap}</p>}
+          {errors.scrap && <p className="text-sm font-semibold text-[var(--danger)] mt-1.5">{errors.scrap}</p>}
         </div>
       </form>
     </Modal>
@@ -549,7 +551,7 @@ function SplitLotsModal({ batch, skus, onClose, onDone }: { batch: Batch; skus: 
     setLoading(true);
     try {
       await batchesApi.splitLots(batch.id, result.data.lots);
-      toast.success('Lots created successfully');
+      toast.success('Lots created');
       onDone();
     } catch (err) {
       handleWorkflowError(err, onDone);
@@ -559,16 +561,16 @@ function SplitLotsModal({ batch, skus, onClose, onDone }: { batch: Batch; skus: 
   };
 
   return (
-    <Modal open onClose={onClose} title="Split into Lots" subtitle={`Splittable: ${formatQty(remainingQty, batch.unit)}`} size="lg"
+    <Modal open onClose={onClose} title="Split into Lots" subtitle={`Amount left to split: ${formatQty(remainingQty, batch.unit)}`} size="lg"
       footer={<><Button variant="ghost" onClick={onClose} disabled={loading}>Cancel</Button><Button loading={loading} disabled={loading || noSkusAvailable} onClick={handleSubmit as unknown as React.MouseEventHandler}>Create Lots</Button></>}
     >
       <form onSubmit={handleSubmit} className="space-y-3">
         {noSkusAvailable && (
-          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
-            No SKUs exist yet. Create one under SKUs before splitting this batch.
+          <p className="text-sm font-semibold text-[var(--warning)] bg-[var(--warning-tint)] border border-[var(--warning)] rounded-lg px-3 py-2">
+            No SKUs yet. Add one under SKUs first.
           </p>
         )}
-        <div className={`text-xs px-3 py-2 rounded-md ${Math.abs(totalAssigned - remainingQty) < 0.001 ? 'bg-green-50 text-green-700' : 'bg-[var(--paper-dark)] text-[var(--ink-muted)]'}`}>
+        <div className={`text-sm font-semibold px-3 py-2.5 rounded-lg ${Math.abs(totalAssigned - remainingQty) < 0.001 ? 'bg-[var(--success-tint)] text-[var(--success)]' : 'bg-[var(--paper-sunken)] text-[var(--ink-muted)]'}`}>
           Assigned: {formatQty(totalAssigned, batch.unit)} / {formatQty(remainingQty, batch.unit)}
         </div>
         {lots.map((lot, i) => (
@@ -579,17 +581,19 @@ function SplitLotsModal({ batch, skus, onClose, onDone }: { batch: Batch; skus: 
                 value={lot.sku_id || ''}
                 onChange={(e) => updateLot(i, 'sku_id', Number(e.target.value))}
                 placeholder="Select SKU…"
-                className="text-xs py-1.5"
               />
             </div>
             <div className="w-28">
-              <Input type="number" step="0.001" min="0" value={lot.quantity} onChange={(e) => updateLot(i, 'quantity', e.target.value)} placeholder="Qty" className="py-1.5 text-xs" />
+              <Input type="number" step="0.001" min="0" value={lot.quantity} onChange={(e) => updateLot(i, 'quantity', e.target.value)} placeholder="Qty" />
             </div>
-            <button type="button" onClick={() => removeLot(i)} disabled={lots.length === 1} title="Remove lot" aria-label="Remove lot" className="text-[var(--ink-muted)] hover:text-red-600 pb-1 disabled:opacity-30"><X size={14} /></button>
+            <button type="button" onClick={() => removeLot(i)} disabled={lots.length === 1} className="flex items-center gap-1.5 text-sm font-bold text-[var(--ink-muted)] hover:text-[var(--danger)] min-h-[52px] px-2.5 disabled:opacity-30">
+              <X size={18} />
+              Remove
+            </button>
           </div>
         ))}
-        {errors.lots && <p className="text-xs text-red-600">{errors.lots}</p>}
-        <Button type="button" variant="outline" size="sm" onClick={addLot} disabled={noSkusAvailable}><Plus size={12} /> Add Lot</Button>
+        {errors.lots && <p className="text-sm font-semibold text-[var(--danger)]">{errors.lots}</p>}
+        <Button type="button" variant="outline" size="sm" onClick={addLot} disabled={noSkusAvailable}><Plus size={16} /> Add Lot</Button>
       </form>
     </Modal>
   );

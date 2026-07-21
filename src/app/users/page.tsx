@@ -13,7 +13,7 @@ import Select from '@/components/ui/Select';
 import { toast } from '@/components/ui/Toast';
 import { usersApi } from '@/lib/api';
 import { User, PaginatedResponse } from '@/lib/types';
-import { formatDate, ROLE_LABELS, parseApiError } from '@/lib/utils';
+import { cn, formatDate, ROLE_LABELS, parseApiError } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import { createUserSchema, ROLES, validate, type FieldErrors } from '@/lib/validation';
@@ -65,7 +65,7 @@ export default function UsersPage() {
   };
 
   const columns = [
-    { key: 'name', header: 'Name', render: (u: User) => <span className="font-medium">{u.name}</span> },
+    { key: 'name', header: 'Name', primary: true, render: (u: User) => <span className="font-bold">{u.name}</span> },
     { key: 'email', header: 'Email', render: (u: User) => u.email },
     {
       key: 'role',
@@ -80,7 +80,7 @@ export default function UsersPage() {
       ),
     },
     { key: 'last_login_at', header: 'Last Login', render: (u: User) => u.last_login_at ? new Date(u.last_login_at).toLocaleString() : 'Never' },
-    { key: 'created_at', header: 'Created', render: (u: User) => formatDate(u.created_at) },
+    { key: 'created_at', header: 'Created', hideInCard: true, render: (u: User) => formatDate(u.created_at) },
     ...(canManage
       ? [
           {
@@ -90,11 +90,17 @@ export default function UsersPage() {
               <button
                 onClick={(e) => { e.stopPropagation(); handleToggleActive(u); }}
                 disabled={togglingId === u.id || u.id === currentUser?.id}
-                className="p-1 text-[var(--ink-muted)] hover:text-[var(--accent)] disabled:opacity-30"
+                className={cn(
+                  'flex items-center gap-1.5 px-3 min-h-11 rounded-lg text-sm font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed',
+                  u.is_active
+                    ? 'text-[var(--danger)] hover:bg-[var(--danger-tint)]'
+                    : 'text-[var(--success)] hover:bg-[var(--success-tint)]'
+                )}
                 title={u.id === currentUser?.id ? 'Cannot modify your own account' : u.is_active ? 'Deactivate' : 'Reactivate'}
                 aria-label={u.id === currentUser?.id ? 'Cannot modify your own account' : u.is_active ? 'Deactivate user' : 'Reactivate user'}
               >
-                {u.is_active ? <Ban size={13} /> : <CheckCircle2 size={13} />}
+                {u.is_active ? <Ban size={18} /> : <CheckCircle2 size={18} />}
+                {u.is_active ? 'Deactivate' : 'Reactivate'}
               </button>
             ),
           },
@@ -106,11 +112,11 @@ export default function UsersPage() {
     <AppShell>
       <PageHeader
         title="Users"
-        subtitle="System users and access control"
+        subtitle="People who can log in, and what they can do"
         action={
           canManage && (
             <Button onClick={() => setShowCreate(true)}>
-              <Plus size={14} /> New User
+              <Plus size={18} /> New User
             </Button>
           )
         }

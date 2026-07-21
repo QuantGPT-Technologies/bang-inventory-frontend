@@ -9,9 +9,9 @@ export function PageHeader({ title, subtitle, action, breadcrumb }: PageHeaderPr
   return (
     <div className="mb-6">
       {breadcrumb && (
-        <nav className="flex items-center gap-1 text-xs text-[var(--ink-muted)] mb-2">
+        <nav className="flex items-center gap-1.5 text-sm font-semibold text-[var(--ink-muted)] mb-2">
           {breadcrumb.map((crumb, i) => (
-            <span key={i} className="flex items-center gap-1">
+            <span key={i} className="flex items-center gap-1.5">
               {i > 0 && <span>/</span>}
               {crumb.href ? (
                 <a href={crumb.href} className="hover:text-[var(--ink)] transition-colors">
@@ -26,21 +26,18 @@ export function PageHeader({ title, subtitle, action, breadcrumb }: PageHeaderPr
           ))}
         </nav>
       )}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1
-            className="text-2xl font-bold text-[var(--ink)]"
-            style={{ fontFamily: 'Playfair Display, serif' }}
-          >
+          <h1 className="text-3xl font-bold text-[var(--ink)]">
             {title}
           </h1>
           {subtitle && (
-            <p className="text-sm text-[var(--ink-muted)] mt-0.5">{subtitle}</p>
+            <p className="text-base text-[var(--ink-muted)] mt-1">{subtitle}</p>
           )}
         </div>
-        {action && <div className="flex-shrink-0 flex items-center gap-2">{action}</div>}
+        {action && <div className="flex-shrink-0 flex items-center gap-3">{action}</div>}
       </div>
-      <div className="mt-3 h-px bg-[var(--border-light)]" />
+      <div className="mt-4 h-px bg-[var(--border)]" />
     </div>
   );
 }

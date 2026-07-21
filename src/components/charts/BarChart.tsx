@@ -41,20 +41,20 @@ export function BarChart({ rows, series, formatValue = (v) => String(v), emptyMe
       {series.length > 1 && (
         <div className="flex items-center gap-4 mb-3 flex-wrap">
           {series.map((s, i) => (
-            <div key={s.key} className="flex items-center gap-1.5 text-xs text-[var(--ink-muted)]">
-              <span className="inline-block w-2.5 h-2.5 rounded-[2px]" style={{ backgroundColor: colors[i] }} />
+            <div key={s.key} className="flex items-center gap-2 text-sm font-semibold text-[var(--ink-muted)]">
+              <span className="inline-block w-3 h-3 rounded-[3px]" style={{ backgroundColor: colors[i] }} />
               {s.label}
             </div>
           ))}
         </div>
       )}
-      <div className="space-y-3.5">
+      <div className="space-y-4">
         {rows.map((row, ri) => (
           <div key={row.category}>
-            <div className="text-xs text-[var(--ink)] font-medium mb-1 truncate" title={row.category}>
+            <div className="text-sm text-[var(--ink)] font-bold mb-1.5 truncate" title={row.category}>
               {row.category}
             </div>
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               {series.map((s, si) => {
                 const value = row.values[s.key] ?? 0;
                 const pct = Math.max(0, Math.min(100, (value / max) * 100));
@@ -62,7 +62,7 @@ export function BarChart({ rows, series, formatValue = (v) => String(v), emptyMe
                 return (
                   <div key={s.key} className="flex items-center gap-2">
                     <div
-                      className="relative flex-1 h-[18px] bg-[var(--paper-dark)] rounded-[2px] cursor-default"
+                      className="relative flex-1 h-6 bg-[var(--paper-sunken)] rounded-[3px] cursor-default"
                       tabIndex={0}
                       role="img"
                       aria-label={`${row.category}${series.length > 1 ? ` — ${s.label}` : ''}: ${formatValue(value)}`}
@@ -76,17 +76,17 @@ export function BarChart({ rows, series, formatValue = (v) => String(v), emptyMe
                         style={{
                           width: value > 0 ? `${Math.max(pct, 1.5)}%` : 0,
                           backgroundColor: colors[si],
-                          opacity: isHovered ? 0.8 : 1,
+                          opacity: isHovered ? 0.85 : 1,
                         }}
                       />
                       {isHovered && (
-                        <div className="absolute -top-7 left-0 z-10 bg-[var(--ink)] text-[var(--paper)] text-[11px] px-2 py-1 rounded whitespace-nowrap pointer-events-none shadow-[0_2px_6px_var(--shadow)]">
-                          <span className="font-semibold">{formatValue(value)}</span>
+                        <div className="absolute -top-8 left-0 z-10 bg-[var(--ink)] text-[var(--paper)] text-sm font-semibold px-2.5 py-1.5 rounded-lg whitespace-nowrap pointer-events-none shadow-[0_2px_6px_var(--shadow)]">
+                          <span className="font-bold">{formatValue(value)}</span>
                           {series.length > 1 && <span className="opacity-70 ml-1">{s.label}</span>}
                         </div>
                       )}
                     </div>
-                    <span className="text-xs font-mono text-[var(--ink-muted)] w-20 text-right shrink-0">
+                    <span className="text-sm font-mono font-semibold text-[var(--ink-muted)] w-20 text-right shrink-0">
                       {formatValue(value)}
                     </span>
                   </div>

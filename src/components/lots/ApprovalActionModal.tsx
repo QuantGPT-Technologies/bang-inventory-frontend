@@ -62,9 +62,9 @@ export function ApprovalActionModal({
       // "conflict" toast wouldn't explain *why* (someone else decided this node first, or this
       // role isn't the node's configured approver) the way these do.
       if (info.isForbidden) {
-        toast.error("You don't have permission to approve this step.");
+        toast.error("You are not allowed to approve this step.");
       } else if (info.isConflict) {
-        toast.error('Someone else already decided this step.');
+        toast.error('Another person already decided this step.');
       } else {
         toast.error(info.message);
       }
@@ -96,21 +96,21 @@ export function ApprovalActionModal({
       }
     >
       <form onSubmit={handleSubmit} className="space-y-3">
-        <p className="text-sm text-[var(--ink-muted)]">
+        <p className="text-base text-[var(--ink-muted)]">
           {isReject ? (
-            <>Reject the <strong>{label}</strong> approval for lot <strong>{lot.lot_number}</strong>? This cannot be undone.</>
+            <>Reject <strong className="text-[var(--ink)]">{label}</strong> for lot <strong className="text-[var(--ink)]">{lot.lot_number}</strong>? You cannot undo this.</>
           ) : (
-            <>Approve the <strong>{label}</strong> step for lot <strong>{lot.lot_number}</strong>?</>
+            <>Approve <strong className="text-[var(--ink)]">{label}</strong> for lot <strong className="text-[var(--ink)]">{lot.lot_number}</strong>?</>
           )}
         </p>
         <Textarea
-          label={isReject ? 'Reason for Rejection' : 'Reason (optional)'}
+          label={isReject ? 'Why You Are Rejecting This' : 'Reason (optional)'}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           error={errors.reason}
           rows={2}
           maxLength={1000}
-          placeholder={isReject ? 'e.g. Dimensions out of spec' : undefined}
+          placeholder={isReject ? 'e.g. Size is wrong' : undefined}
         />
       </form>
     </Modal>

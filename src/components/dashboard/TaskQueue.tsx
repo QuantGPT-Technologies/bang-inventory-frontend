@@ -36,16 +36,16 @@ export function TaskQueue() {
   return (
     <Card title="What Needs Attention" noPadding>
       {loading ? (
-        <div className="p-5 text-center text-sm text-[var(--ink-muted)]">Loading…</div>
+        <div className="p-5 text-center text-base text-[var(--ink-muted)]">Loading…</div>
       ) : error ? (
-        <div className="p-5 text-center text-sm text-red-600">Couldn&apos;t load your task queue.</div>
+        <div className="p-5 text-center text-base font-semibold text-[var(--danger)]">Could not load your to-do list.</div>
       ) : items.length === 0 ? (
         <div className="p-8 text-center gap-2 flex flex-col items-center">
-          <CheckCircle2 size={28} className="text-green-600" />
-          <p className="text-sm text-[var(--ink-muted)]">Nothing needs your attention right now — nice work.</p>
+          <CheckCircle2 size={32} className="text-[var(--success)]" />
+          <p className="text-base text-[var(--ink-muted)]">Nothing to do right now.</p>
         </div>
       ) : (
-        <div className="divide-y divide-[var(--border-light)]">
+        <div className="divide-y divide-[var(--border)]">
           {items.map((item, i) => (
             <TaskCard key={`${item.entity_type}-${item.lot_id ?? item.batch_id}-${item.node_key}-${i}`} item={item} />
           ))}
@@ -67,29 +67,29 @@ function TaskCard({ item }: { item: AttentionItem }) {
 
   return (
     <div
-      className="flex items-center gap-3 px-4 py-3 hover:bg-[var(--paper-dark)] transition-colors cursor-pointer"
+      className="flex items-center gap-4 px-4 py-4 hover:bg-[var(--paper-sunken)] transition-colors cursor-pointer"
       onClick={() => router.push(href)}
     >
       <div
-        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-        style={{ backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)`, color }}
+        className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+        style={{ backgroundColor: `color-mix(in srgb, ${color} 16%, transparent)`, color }}
       >
-        <Icon size={16} />
+        <Icon size={22} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-[var(--ink)] truncate">
+        <p className="text-base font-bold text-[var(--ink)] truncate">
           {verb} {item.node_name} — {entityLabel}
           {item.sku_code && <span className="text-[var(--ink-muted)] font-normal"> · {item.sku_code}</span>}
         </p>
-        <p className="text-xs text-[var(--ink-muted)]">Waiting since {formatDateTime(item.waiting_since)}</p>
+        <p className="text-sm text-[var(--ink-muted)] font-mono mt-0.5">Waiting since {formatDateTime(item.waiting_since)}</p>
       </div>
       {item.can_act ? (
-        <Button size="sm" onClick={() => router.push(href)}>
-          {verb} <ArrowRight size={13} />
+        <Button size="md" onClick={(e) => { e.stopPropagation(); router.push(href); }}>
+          {verb} <ArrowRight size={18} />
         </Button>
       ) : (
         <Badge variant="muted">
-          Waiting on {item.waiting_on_role ? ROLE_LABELS[item.waiting_on_role] : 'someone else'}
+          Waiting on {item.waiting_on_role ? ROLE_LABELS[item.waiting_on_role] : 'another person'}
         </Badge>
       )}
     </div>

@@ -14,9 +14,9 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
   ({ className, label, error, hint, options, placeholder, id, ...props }, ref) => {
     const selectId = id || label?.toLowerCase().replace(/\s+/g, '-');
     return (
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1.5">
         {label && (
-          <label htmlFor={selectId} className="text-sm font-medium text-[var(--ink-light)] uppercase tracking-wide">
+          <label htmlFor={selectId} className="text-sm font-bold text-[var(--ink-light)] uppercase tracking-wide">
             {label}
           </label>
         )}
@@ -24,12 +24,12 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
           ref={ref}
           id={selectId}
           className={cn(
-            'w-full px-3 py-2 text-sm rounded-md',
-            'bg-[var(--paper)] text-[var(--ink)]',
-            'border border-[var(--border)]',
-            'focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]',
+            'w-full px-4 min-h-[52px] text-base rounded-xl',
+            'bg-[var(--paper-raised)] text-[var(--ink)]',
+            'border-2 border-[var(--border-strong)]',
+            'focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-tint)]',
             'transition-colors duration-150 cursor-pointer',
-            error && 'border-red-500',
+            error && 'border-[var(--danger)]',
             className
           )}
           {...props}
@@ -39,8 +39,8 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        {hint && !error && <p className="text-xs text-[var(--ink-muted)]">{hint}</p>}
+        {error && <p className="text-sm font-semibold text-[var(--danger)]">{error}</p>}
+        {hint && !error && <p className="text-sm text-[var(--ink-muted)]">{hint}</p>}
       </div>
     );
   }

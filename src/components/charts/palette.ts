@@ -1,8 +1,8 @@
 // Validated categorical palette (fixed order — never cycled/reassigned; see dataviz skill,
-// references/palette.md). This app is light-only (no dark mode / no data-theme toggle in
-// globals.css), so only the light-mode steps are needed. Chrome (surface, text, gridlines)
-// comes from the app's own design tokens in globals.css instead of the skill's default chrome,
-// so charts sit naturally inside the existing paper/ink aesthetic.
+// references/palette.md). These are fixed data-series hues, not semantic/theme colors, so they
+// stay constant across light/dark rather than routing through globals.css tokens -- chosen at a
+// mid-tone saturation that holds contrast on both --paper-raised (light) and its dark
+// equivalent. Chrome (surface, text, gridlines) still comes from the app's own design tokens.
 export const CATEGORICAL = [
   '#2a78d6', // 1 blue
   '#008300', // 2 green

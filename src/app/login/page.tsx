@@ -6,6 +6,8 @@ import { authApi } from '@/lib/api';
 import { getErrorMessage } from '@/lib/utils';
 import { loginSchema, validate, type FieldErrors } from '@/lib/validation';
 import { ToastContainer, toast } from '@/components/ui/Toast';
+import Button from '@/components/ui/Button';
+import Input from '@/components/ui/Input';
 import { Lock, Mail, Factory } from 'lucide-react';
 
 function isSafeNextPath(next: string | null): next is string {
@@ -22,8 +24,8 @@ export default function LoginPage() {
 
 function LoginFallback() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--paper-dark)]">
-      <div className="text-sm text-[var(--ink-muted)]">Loading…</div>
+    <div className="min-h-screen flex items-center justify-center bg-[var(--paper-sunken)]">
+      <div className="text-base text-[var(--ink-muted)]">Loading…</div>
     </div>
   );
 }
@@ -78,91 +80,76 @@ function LoginForm() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--paper-dark)] p-4">
+    <div className="min-h-screen flex items-center justify-center bg-[var(--paper-sunken)] p-4">
       <ToastContainer />
 
       {/* Decorative lines */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-0 right-0 h-1 bg-[var(--accent)]" />
-        <div className="absolute top-1 left-0 right-0 h-px bg-[var(--accent-light)] opacity-50" />
+        <div className="absolute top-1 left-0 right-0 h-px bg-[var(--accent-dark)] opacity-50" />
       </div>
 
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-[var(--accent)] text-white mb-4 shadow-lg">
-            <Factory size={24} />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[var(--accent)] text-white mb-4 shadow-lg">
+            <Factory size={28} />
           </div>
-          <h1
-            className="text-3xl font-bold text-[var(--ink)]"
-            style={{ fontFamily: 'Playfair Display, serif' }}
-          >
+          <h1 className="text-3xl font-bold text-[var(--ink)]">
             Bang Inventory
           </h1>
-          <p className="text-sm text-[var(--ink-muted)] mt-1">
-            Production Line Tracking System
+          <p className="text-base text-[var(--ink-muted)] mt-1">
+            Track your factory&apos;s stock and production
           </p>
           <div className="flex items-center gap-2 mt-3 justify-center">
             <div className="h-px flex-1 bg-[var(--border)]" />
-            <span className="text-xs text-[var(--ink-muted)] uppercase tracking-wider">Sign In</span>
+            <span className="text-sm font-bold text-[var(--ink-muted)] uppercase tracking-wider">Sign In</span>
             <div className="h-px flex-1 bg-[var(--border)]" />
           </div>
         </div>
 
         {/* Card */}
-        <div className="bg-[var(--paper)] border border-[var(--border-light)] rounded-lg shadow-[0_4px_24px_var(--shadow)] p-6">
+        <div className="bg-[var(--paper-raised)] border border-[var(--border)] rounded-2xl shadow-[0_4px_24px_var(--shadow)] p-6">
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="text-xs font-medium text-[var(--ink-light)] uppercase tracking-wide block mb-1">
-                Email Address
-              </label>
-              <div className="relative">
-                <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ink-muted)]" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={loading}
-                  autoComplete="username"
-                  className="w-full pl-9 pr-3 py-2.5 text-sm rounded-md bg-[var(--paper)] border border-[var(--border)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-colors disabled:opacity-60"
-                  placeholder="you@company.com"
-                />
-              </div>
-              {fieldErrors.email && <p className="text-xs text-red-600 mt-1">{fieldErrors.email}</p>}
+            <div className="relative">
+              <Mail size={20} className="absolute left-4 top-[46px] text-[var(--ink-muted)] pointer-events-none" />
+              <Input
+                type="email"
+                label="Email Address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={loading}
+                autoComplete="username"
+                placeholder="you@company.com"
+                error={fieldErrors.email}
+                className="pl-11"
+              />
             </div>
 
-            <div>
-              <label className="text-xs font-medium text-[var(--ink-light)] uppercase tracking-wide block mb-1">
-                Password
-              </label>
-              <div className="relative">
-                <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ink-muted)]" />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={loading}
-                  autoComplete="current-password"
-                  className="w-full pl-9 pr-3 py-2.5 text-sm rounded-md bg-[var(--paper)] border border-[var(--border)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-colors disabled:opacity-60"
-                  placeholder="••••••••"
-                />
-              </div>
-              {fieldErrors.password && <p className="text-xs text-red-600 mt-1">{fieldErrors.password}</p>}
+            <div className="relative">
+              <Lock size={20} className="absolute left-4 top-[46px] text-[var(--ink-muted)] pointer-events-none" />
+              <Input
+                type="password"
+                label="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={loading}
+                autoComplete="current-password"
+                placeholder="••••••••"
+                error={fieldErrors.password}
+                className="pl-11"
+              />
             </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-2.5 px-4 bg-[var(--accent)] text-white rounded-md text-sm font-medium hover:bg-[var(--accent-light)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-2 shadow-sm"
-            >
+            <Button type="submit" size="lg" loading={loading} className="w-full mt-2">
               {loading ? 'Signing in…' : 'Sign In'}
-            </button>
+            </Button>
           </form>
         </div>
 
         {/* Footer */}
-        <p className="text-center text-xs text-[var(--ink-muted)] mt-6">
-          Powder Metallurgy Factory · v1.0
+        <p className="text-center text-sm text-[var(--ink-muted)] mt-6">
+          Bang Inventory
         </p>
       </div>
     </div>

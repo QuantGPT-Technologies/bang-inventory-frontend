@@ -9,7 +9,7 @@ import Textarea from '@/components/ui/Textarea';
 import { toast } from '@/components/ui/Toast';
 import { lotsApi } from '@/lib/api';
 import { Lot, LotStep, Consumable } from '@/lib/types';
-import { formatDateTime, formatQty, getNodeLabel, SKIPPABLE_STEPS, STEP_STATUS_LABELS, parseApiError } from '@/lib/utils';
+import { formatDateTime, formatQty, getNodeLabel, SKIPPABLE_STEPS, STEP_STATUS_LABELS, SCRAP_TYPE_LABELS, parseApiError } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import { startStepSchema, completeStepSchema, overrideStepSchema, scrapSchema, consumableUsageSchema, validate, toNumber, INTEGER_UNITS, type FieldErrors } from '@/lib/validation';
@@ -94,12 +94,12 @@ export function ProductionStepActionModal({
 
   const titles: Record<string, string> = {
     start: `Start ${label}`,
-    complete: `Complete ${label}`,
+    complete: `Finish ${label}`,
     skip: `Skip ${label}`,
-    override: `Override — ${label}`,
+    override: `Fix a Mistake — ${label}`,
     analytics: `Step Detail — ${label}`,
     scrap: `Record Scrap — ${label}`,
-    consumable: `Record Consumable Usage`,
+    consumable: `Log Materials Used`,
   };
 
   useEffect(() => {
@@ -138,7 +138,7 @@ export function ProductionStepActionModal({
           setErrors({});
           setLoading(true);
           await lotsApi.startStep(lot.id, nodeKey, { machine_name: result.data.machine_name || undefined });
-          toast.success('Step started');
+          toast.success(`${label} started`);
           onDone();
           break;
         }
@@ -163,18 +163,18 @@ export function ProductionStepActionModal({
             machine_name: result.data.machine_name || undefined,
             notes: result.data.notes || undefined,
           });
-          toast.success('Step completed');
+          toast.success(`${label} finished`);
           onDone();
           break;
         }
         case 'skip': {
           if (!SKIPPABLE_STEPS[nodeKey]) {
-            toast.error(`The ${label} step cannot be skipped.`);
+            toast.error(`You cannot skip ${label}.`);
             return;
           }
           setLoading(true);
           await lotsApi.skipStep(lot.id, nodeKey);
-          toast.success('Step skipped');
+          toast.success(`${label} skipped`);
           onDone();
           break;
         }
@@ -193,7 +193,7 @@ export function ProductionStepActionModal({
           setErrors({});
           setLoading(true);
           await lotsApi.updateStep(lot.id, nodeKey, result.data);
-          toast.success('Step updated');
+          toast.success(`${label} updated`);
           onDone();
           break;
         }
@@ -225,7 +225,7 @@ export function ProductionStepActionModal({
         }
         case 'consumable': {
           if (noConsumablesAvailable) {
-            toast.error('No consumables are configured. Create one under Consumables first.');
+            toast.error('No materials are set up. Add one under Consumables first.');
             return;
           }
           const payload = { consumable_id: consumableId, quantity: toNumber(consumableQty), unit: consumableUnit || selectedConsumable?.unit || '' };
@@ -237,13 +237,13 @@ export function ProductionStepActionModal({
           }
           if (selectedConsumable && result.data.quantity > selectedConsumable.current_stock) {
             setErrors({ quantity: `Only ${formatQty(selectedConsumable.current_stock, selectedConsumable.unit)} in stock` });
-            toast.error('Requested quantity exceeds available stock.');
+            toast.error('You asked for more than what is in stock.');
             return;
           }
           setErrors({});
           setLoading(true);
           await lotsApi.recordConsumable(lot.id, nodeKey, result.data);
-          toast.success('Consumable usage recorded');
+          toast.success('Materials logged');
           onDone();
           break;
         }
@@ -274,33 +274,33 @@ export function ProductionStepActionModal({
       <form onSubmit={handleSubmit} className="space-y-3">
         {actionType === 'complete' && (
           <>
-            <Input label={`Actual Input Qty (${currentStep?.input_unit || lot.unit || 'unit'})`} type="number" step={qtyStepAttr(currentStep?.input_unit)} min="0" value={inputQty} onChange={(e) => setInputQty(e.target.value)} error={errors.actual_input_qty} placeholder={qtyPlaceholder(currentStep?.input_unit)} />
-            <Input label={`Actual Output Qty (${currentStep?.output_unit || lot.unit || 'unit'})`} type="number" step={qtyStepAttr(currentStep?.output_unit)} min="0" value={outputQty} onChange={(e) => setOutputQty(e.target.value)} error={errors.actual_output_qty} placeholder={qtyPlaceholder(currentStep?.output_unit)} />
+            <Input label={`Real Amount In (${currentStep?.input_unit || lot.unit || 'unit'})`} type="number" step={qtyStepAttr(currentStep?.input_unit)} min="0" value={inputQty} onChange={(e) => setInputQty(e.target.value)} error={errors.actual_input_qty} placeholder={qtyPlaceholder(currentStep?.input_unit)} />
+            <Input label={`Real Amount Out (${currentStep?.output_unit || lot.unit || 'unit'})`} type="number" step={qtyStepAttr(currentStep?.output_unit)} min="0" value={outputQty} onChange={(e) => setOutputQty(e.target.value)} error={errors.actual_output_qty} placeholder={qtyPlaceholder(currentStep?.output_unit)} />
             <Input label="Machine Name" value={machineName} onChange={(e) => setMachineName(e.target.value)} placeholder="Press-A1" maxLength={100} />
             <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} maxLength={1000} />
           </>
         )}
         {actionType === 'start' && (
           <>
-            <p className="text-sm text-[var(--ink-muted)] mb-3">
-              Start the <strong>{label}</strong> step for lot <strong>{lot.lot_number}</strong>?
+            <p className="text-base text-[var(--ink-muted)] mb-3">
+              Start <strong className="text-[var(--ink)]">{label}</strong> for lot <strong className="text-[var(--ink)]">{lot.lot_number}</strong>?
             </p>
             <Input label="Machine Name (optional)" value={startMachineName} onChange={(e) => setStartMachineName(e.target.value)} error={errors.machine_name} placeholder="Press-A1" maxLength={100} />
           </>
         )}
         {actionType === 'skip' && (
-          <p className="text-sm text-[var(--ink-muted)]">
-            Skip the <strong>{label}</strong> step for lot <strong>{lot.lot_number}</strong>? This cannot be undone.
+          <p className="text-base text-[var(--ink-muted)]">
+            Skip <strong className="text-[var(--ink)]">{label}</strong> for lot <strong className="text-[var(--ink)]">{lot.lot_number}</strong>? You cannot undo this.
           </p>
         )}
         {actionType === 'override' && (
           <>
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mb-1">
-              This overwrites the recorded quantities for a completed step. Leave a quantity field blank to keep its current value. A reason is required.
+            <p className="text-sm font-semibold text-[var(--warning)] bg-[var(--warning-tint)] border border-[var(--warning)] rounded-lg px-3 py-2.5 mb-1">
+              This changes numbers already saved for this step. Leave a box empty to keep it the same. You must explain why.
             </p>
-            <Input label={`Actual Input Qty (${currentStep?.input_unit || lot.unit || 'unit'})`} type="number" step={qtyStepAttr(currentStep?.input_unit)} min="0" value={overrideInputQty} onChange={(e) => setOverrideInputQty(e.target.value)} error={errors.actual_input_qty} placeholder={qtyPlaceholder(currentStep?.input_unit)} />
-            <Input label={`Actual Output Qty (${currentStep?.output_unit || lot.unit || 'unit'})`} type="number" step={qtyStepAttr(currentStep?.output_unit)} min="0" value={overrideOutputQty} onChange={(e) => setOverrideOutputQty(e.target.value)} error={errors.actual_output_qty} placeholder={qtyPlaceholder(currentStep?.output_unit)} />
-            <Textarea label="Reason for Change" value={overrideNotes} onChange={(e) => setOverrideNotes(e.target.value)} error={errors.notes} rows={2} maxLength={1000} placeholder="e.g. Corrected after physical recount" />
+            <Input label={`Real Amount In (${currentStep?.input_unit || lot.unit || 'unit'})`} type="number" step={qtyStepAttr(currentStep?.input_unit)} min="0" value={overrideInputQty} onChange={(e) => setOverrideInputQty(e.target.value)} error={errors.actual_input_qty} placeholder={qtyPlaceholder(currentStep?.input_unit)} />
+            <Input label={`Real Amount Out (${currentStep?.output_unit || lot.unit || 'unit'})`} type="number" step={qtyStepAttr(currentStep?.output_unit)} min="0" value={overrideOutputQty} onChange={(e) => setOverrideOutputQty(e.target.value)} error={errors.actual_output_qty} placeholder={qtyPlaceholder(currentStep?.output_unit)} />
+            <Textarea label="Why You're Changing This" value={overrideNotes} onChange={(e) => setOverrideNotes(e.target.value)} error={errors.notes} rows={2} maxLength={1000} placeholder="e.g. Corrected after counting again by hand" />
           </>
         )}
         {actionType === 'analytics' && (
@@ -309,14 +309,14 @@ export function ProductionStepActionModal({
         {actionType === 'scrap' && (
           <>
             {scrapTypes.length === 0 ? (
-              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
-                The {label} step does not allow scrap entries.
+              <p className="text-sm font-semibold text-[var(--warning)] bg-[var(--warning-tint)] border border-[var(--warning)] rounded-lg px-3 py-2.5">
+                You cannot record scrap for {label}.
               </p>
             ) : (
               <>
                 <Select
                   label="Scrap Type"
-                  options={scrapTypes.map((t) => ({ value: t, label: t.replace('_', ' ') }))}
+                  options={scrapTypes.map((t) => ({ value: t, label: SCRAP_TYPE_LABELS[t] || t.replace(/_/g, ' ') }))}
                   value={scrapType}
                   onChange={(e) => setScrapType(e.target.value)}
                   placeholder="Select type…"
@@ -334,17 +334,17 @@ export function ProductionStepActionModal({
         {actionType === 'consumable' && (
           <>
             {noConsumablesAvailable ? (
-              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
-                No consumables are configured yet.
+              <p className="text-sm font-semibold text-[var(--warning)] bg-[var(--warning-tint)] border border-[var(--warning)] rounded-lg px-3 py-2.5">
+                No materials are set up yet.
               </p>
             ) : (
               <>
                 <Select
-                  label="Consumable"
+                  label="Material"
                   options={consumables.map((c) => ({ value: c.id, label: `${c.name} (${c.unit}) — ${c.current_stock} in stock` }))}
                   value={consumableId || ''}
                   onChange={(e) => setConsumableId(Number(e.target.value))}
-                  placeholder="Select consumable…"
+                  placeholder="Select material…"
                   error={errors.consumable_id}
                 />
                 <div className="grid grid-cols-2 gap-2">
@@ -376,7 +376,7 @@ export function ProductionStepActionModal({
 function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
-      <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--ink-muted)]">{title}</h4>
+      <h4 className="text-sm font-bold uppercase tracking-wide text-[var(--ink-muted)]">{title}</h4>
       {children}
     </div>
   );
@@ -389,16 +389,16 @@ function ProductionStepAnalyticsView({ loading, error, data }: { loading: boolea
   // this just avoids showing a misleading "no corrections" empty state to everyone else.
   const canViewOverrideHistory = canAccess(user, 'lots', 'override');
 
-  if (loading) return <p className="text-sm text-[var(--ink-muted)] text-center py-4">Loading…</p>;
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
-  if (!data) return <p className="text-sm text-[var(--ink-muted)] italic">No detail available for this step yet.</p>;
+  if (loading) return <p className="text-base text-[var(--ink-muted)] text-center py-4">Loading…</p>;
+  if (error) return <p className="text-base font-semibold text-[var(--danger)]">{error}</p>;
+  if (!data) return <p className="text-base text-[var(--ink-muted)] italic">No detail available for this step yet.</p>;
 
   const v = data.variance;
 
   return (
     <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-1">
       <DetailSection title="Overview">
-        <dl className="space-y-1.5 text-sm">
+        <dl className="space-y-1.5 text-base">
           <DL label="Status"><Badge variant={stepStatusBadge(data.status)}>{STEP_STATUS_LABELS[data.status] || data.status}</Badge></DL>
           {data.machine_name && <DL label="Machine">{data.machine_name}</DL>}
           {data.operator_name && <DL label="Operator">{data.operator_name}</DL>}
@@ -408,16 +408,16 @@ function ProductionStepAnalyticsView({ loading, error, data }: { loading: boolea
         </dl>
       </DetailSection>
 
-      <DetailSection title="Quantities">
-        <dl className="space-y-1.5 text-sm">
-          <DL label="Expected Input">{formatQty(data.expected_input_qty ?? undefined, data.input_unit)}</DL>
-          <DL label="Actual Input">{formatQty(data.actual_input_qty ?? undefined, data.input_unit)}</DL>
-          <DL label="Expected Output">{formatQty(data.expected_output_qty ?? undefined, data.output_unit)}</DL>
-          <DL label="Actual Output">{formatQty(data.actual_output_qty ?? undefined, data.output_unit)}</DL>
+      <DetailSection title="Amounts">
+        <dl className="space-y-1.5 text-base">
+          <DL label="Planned In">{formatQty(data.expected_input_qty ?? undefined, data.input_unit)}</DL>
+          <DL label="Real In">{formatQty(data.actual_input_qty ?? undefined, data.input_unit)}</DL>
+          <DL label="Planned Out">{formatQty(data.expected_output_qty ?? undefined, data.output_unit)}</DL>
+          <DL label="Real Out">{formatQty(data.actual_output_qty ?? undefined, data.output_unit)}</DL>
           {v && (
             <>
-              <DL label="Input Variance">{v.input_diff.toFixed(3)} ({v.input_diff_pct.toFixed(1)}%)</DL>
-              <DL label="Output Variance">{v.output_diff.toFixed(3)} ({v.output_diff_pct.toFixed(1)}%)</DL>
+              <DL label="Difference In">{v.input_diff.toFixed(3)} ({v.input_diff_pct.toFixed(1)}%)</DL>
+              <DL label="Difference Out">{v.output_diff.toFixed(3)} ({v.output_diff_pct.toFixed(1)}%)</DL>
               <DL label="Yield">{v.yield_pct.toFixed(1)}%</DL>
               <DL label="Total Scrap">{formatQty(v.total_scrap, v.scrap_unit)}</DL>
             </>
@@ -425,19 +425,19 @@ function ProductionStepAnalyticsView({ loading, error, data }: { loading: boolea
         </dl>
       </DetailSection>
 
-      <DetailSection title={`Scrap Entries${data.scrap_entries?.length ? ` (${data.scrap_entries.length})` : ''}`}>
+      <DetailSection title={`Scrap${data.scrap_entries?.length ? ` (${data.scrap_entries.length})` : ''}`}>
         {!data.scrap_entries?.length ? (
-          <p className="text-sm text-[var(--ink-muted)] italic">No scrap recorded for this step.</p>
+          <p className="text-base text-[var(--ink-muted)] italic">No scrap recorded for this step.</p>
         ) : (
-          <div className="border border-[var(--border-light)] rounded-md divide-y divide-[var(--border-light)]">
+          <div className="border border-[var(--border)] rounded-lg divide-y divide-[var(--border)]">
             {data.scrap_entries.map((se) => (
-              <div key={se.id} className="px-3 py-2 text-sm flex items-center justify-between gap-2">
+              <div key={se.id} className="px-3 py-2.5 text-base flex items-center justify-between gap-2">
                 <div>
-                  <span className="font-medium">{se.scrap_type.replace('_', ' ')}</span>
+                  <span className="font-semibold">{SCRAP_TYPE_LABELS[se.scrap_type] || se.scrap_type.replace(/_/g, ' ')}</span>
                   <span className="text-[var(--ink-muted)]"> — {formatQty(se.quantity, se.unit)}</span>
-                  {se.notes && <p className="text-xs text-[var(--ink-muted)]">{se.notes}</p>}
+                  {se.notes && <p className="text-sm text-[var(--ink-muted)]">{se.notes}</p>}
                 </div>
-                <div className="text-right text-xs text-[var(--ink-muted)] flex-shrink-0">
+                <div className="text-right text-sm text-[var(--ink-muted)] flex-shrink-0">
                   {se.recorded_by_name && <div>{se.recorded_by_name}</div>}
                   <div>{formatDateTime(se.created_at)}</div>
                 </div>
@@ -447,16 +447,16 @@ function ProductionStepAnalyticsView({ loading, error, data }: { loading: boolea
         )}
       </DetailSection>
 
-      <DetailSection title={`Consumables Used${data.consumable_usages?.length ? ` (${data.consumable_usages.length})` : ''}`}>
+      <DetailSection title={`Materials Used${data.consumable_usages?.length ? ` (${data.consumable_usages.length})` : ''}`}>
         {!data.consumable_usages?.length ? (
-          <p className="text-sm text-[var(--ink-muted)] italic">No consumables recorded for this step.</p>
+          <p className="text-base text-[var(--ink-muted)] italic">No materials recorded for this step.</p>
         ) : (
-          <div className="border border-[var(--border-light)] rounded-md divide-y divide-[var(--border-light)]">
+          <div className="border border-[var(--border)] rounded-lg divide-y divide-[var(--border)]">
             {data.consumable_usages.map((cu) => (
-              <div key={cu.id} className="px-3 py-2 text-sm flex items-center justify-between gap-2">
-                <span className="font-medium">{cu.consumable_name}</span>
-                <div className="text-right text-xs text-[var(--ink-muted)] flex-shrink-0">
-                  <div className="text-sm text-[var(--ink)] font-mono">{formatQty(cu.quantity, cu.unit)}</div>
+              <div key={cu.id} className="px-3 py-2.5 text-base flex items-center justify-between gap-2">
+                <span className="font-semibold">{cu.consumable_name}</span>
+                <div className="text-right text-sm text-[var(--ink-muted)] flex-shrink-0">
+                  <div className="text-base text-[var(--ink)] font-mono">{formatQty(cu.quantity, cu.unit)}</div>
                   <div>{formatDateTime(cu.created_at)}</div>
                 </div>
               </div>
@@ -466,29 +466,29 @@ function ProductionStepAnalyticsView({ loading, error, data }: { loading: boolea
       </DetailSection>
 
       {canViewOverrideHistory && (
-        <DetailSection title={`Override History${data.override_history?.length ? ` (${data.override_history.length})` : ''}`}>
+        <DetailSection title={`Changes Made${data.override_history?.length ? ` (${data.override_history.length})` : ''}`}>
           {!data.override_history?.length ? (
-            <p className="text-sm text-[var(--ink-muted)] italic">No manual corrections have been made to this step.</p>
+            <p className="text-base text-[var(--ink-muted)] italic">No one has changed this step by hand.</p>
           ) : (
-            <div className="border border-[var(--border-light)] rounded-md divide-y divide-[var(--border-light)]">
+            <div className="border border-[var(--border)] rounded-lg divide-y divide-[var(--border)]">
               {data.override_history.map((o) => (
-                <div key={o.id} className="px-3 py-2 text-sm space-y-1">
+                <div key={o.id} className="px-3 py-2.5 text-base space-y-1">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-[var(--ink-muted)]">
+                    <span className="text-sm text-[var(--ink-muted)]">
                       {o.changed_by_name || 'Unknown'} · {formatDateTime(o.created_at)}
                     </span>
                   </div>
                   {(o.previous_input_qty != null || o.new_input_qty != null) && (
-                    <div className="text-xs">
-                      Input: <span className="font-mono">{o.previous_input_qty ?? '—'}</span> → <span className="font-mono font-semibold">{o.new_input_qty ?? '—'}</span> {data.input_unit}
+                    <div className="text-sm">
+                      In: <span className="font-mono">{o.previous_input_qty ?? '—'}</span> → <span className="font-mono font-semibold">{o.new_input_qty ?? '—'}</span> {data.input_unit}
                     </div>
                   )}
                   {(o.previous_output_qty != null || o.new_output_qty != null) && (
-                    <div className="text-xs">
-                      Output: <span className="font-mono">{o.previous_output_qty ?? '—'}</span> → <span className="font-mono font-semibold">{o.new_output_qty ?? '—'}</span> {data.output_unit}
+                    <div className="text-sm">
+                      Out: <span className="font-mono">{o.previous_output_qty ?? '—'}</span> → <span className="font-mono font-semibold">{o.new_output_qty ?? '—'}</span> {data.output_unit}
                     </div>
                   )}
-                  <div className="text-xs text-[var(--ink-muted)] italic">Reason: {o.reason}</div>
+                  <div className="text-sm text-[var(--ink-muted)] italic">Why: {o.reason}</div>
                 </div>
               ))}
             </div>

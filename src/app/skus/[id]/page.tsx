@@ -51,7 +51,7 @@ export default function SKUDetailPage() {
   useEffect(() => {
     customersApi.list(1, 100).then((r) => setCustomers(r.data.data?.items || [])).catch(() => {});
     rawMaterialsApi.list(1, 100).then((r) => setRawMaterials(r.data.data?.items || [])).catch(() => {
-      toast.error('Failed to load raw materials list. Bill of materials editing may be unavailable.');
+      toast.error('Failed to load raw materials list. Editing what this product is made of may be unavailable.');
     });
     workflowTemplatesApi.list({ per_page: 100 }).then((r) => setWorkflowTemplates(r.data.data?.items || [])).catch(() => {
       toast.error('Failed to load workflow templates. Default workflow template editing may be unavailable.');
@@ -72,9 +72,9 @@ export default function SKUDetailPage() {
     );
   }
 
-  if (loading) return <AppShell><div className="p-8 text-center text-[var(--ink-muted)]">Loading…</div></AppShell>;
+  if (loading) return <AppShell><div className="p-8 text-center text-base text-[var(--ink-muted)]">Loading…</div></AppShell>;
   if (error) return <AppShell><ErrorState error={error} onRetry={error.isNotFound ? undefined : reload} /></AppShell>;
-  if (!sku) return <AppShell><div className="p-8 text-center text-[var(--ink-muted)]">SKU not found.</div></AppShell>;
+  if (!sku) return <AppShell><div className="p-8 text-center text-base text-[var(--ink-muted)]">SKU not found.</div></AppShell>;
 
   const canWrite = canAccess(user, 'skus', 'write');
 
@@ -83,7 +83,7 @@ export default function SKUDetailPage() {
       <PageHeader
         title={sku.name}
         subtitle={sku.code}
-        breadcrumb={[{ label: 'SKUs', href: '/skus' }, { label: sku.code }]}
+        breadcrumb={[{ label: 'Products', href: '/skus' }, { label: sku.code }]}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -92,8 +92,11 @@ export default function SKUDetailPage() {
           className="lg:col-span-1"
           action={
             canWrite && !editingDetails && (
-              <button onClick={() => setEditingDetails(true)} className="text-[var(--ink-muted)] hover:text-[var(--accent)]" title="Edit" aria-label="Edit SKU details">
-                <Pencil size={14} />
+              <button
+                onClick={() => setEditingDetails(true)}
+                className="flex items-center gap-1.5 min-h-11 px-3 rounded-lg text-sm font-bold text-[var(--ink-muted)] hover:text-[var(--accent)] hover:bg-[var(--paper-sunken)] transition-colors"
+              >
+                <Pencil size={18} /> Edit
               </button>
             )
           }
@@ -107,8 +110,8 @@ export default function SKUDetailPage() {
               onSaved={() => { reload(); setEditingDetails(false); }}
             />
           ) : (
-            <dl className="space-y-3 text-sm">
-              <DL label="Code"><span className="font-mono font-semibold">{sku.code}</span></DL>
+            <dl className="space-y-3 text-base">
+              <DL label="SKU Code"><span className="font-mono font-bold">{sku.code}</span></DL>
               <DL label="Name">{sku.name}</DL>
               <DL label="Customer">{sku.customer_name || 'Internal / No customer'}</DL>
               <DL label="Unit">{sku.unit}</DL>
@@ -129,13 +132,13 @@ export default function SKUDetailPage() {
         </Card>
 
         <Card
-          title="Bill of Materials"
-          subtitle="Blend recipe used when producing this SKU"
+          title="What It's Made Of"
+          subtitle="Recipe used when making this product"
           className="lg:col-span-2"
           action={
             canWrite && !editingMaterials && (
               <Button variant="ghost" size="sm" onClick={() => setEditingMaterials(true)}>
-                <Pencil size={12} /> Edit
+                <Pencil size={18} /> Edit
               </Button>
             )
           }
@@ -148,27 +151,27 @@ export default function SKUDetailPage() {
               onSaved={() => { reload(); setEditingMaterials(false); }}
             />
           ) : !sku.materials?.length ? (
-            <p className="text-sm text-[var(--ink-muted)] italic">No bill of materials defined yet.</p>
+            <p className="text-base text-[var(--ink-muted)] italic">Not set yet — nothing added to show what this product is made from.</p>
           ) : (
-            <table className="w-full text-sm">
+            <table className="w-full text-base">
               <thead>
-                <tr className="border-b border-[var(--border-light)]">
-                  <th className="text-left py-2 text-xs uppercase tracking-wide text-[var(--ink-muted)]">Raw Material</th>
-                  <th className="text-right py-2 text-xs uppercase tracking-wide text-[var(--ink-muted)]">Ratio</th>
+                <tr className="border-b border-[var(--border)]">
+                  <th className="text-left py-2 text-sm font-bold uppercase tracking-wide text-[var(--ink-muted)]">Raw Material</th>
+                  <th className="text-right py-2 text-sm font-bold uppercase tracking-wide text-[var(--ink-muted)]">Ratio</th>
                 </tr>
               </thead>
               <tbody>
                 {sku.materials.map((m, i) => (
-                  <tr key={i} className="border-b border-[var(--border-light)] last:border-0">
-                    <td className="py-2">{m.raw_material_name || `Material #${m.raw_material_id}`}</td>
-                    <td className="py-2 text-right font-mono">{m.ratio_percent.toFixed(1)}%</td>
+                  <tr key={i} className="border-b border-[var(--border)] last:border-0">
+                    <td className="py-2.5">{m.raw_material_name || `Material #${m.raw_material_id}`}</td>
+                    <td className="py-2.5 text-right font-mono">{m.ratio_percent.toFixed(1)}%</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr>
-                  <td className="pt-2 text-xs font-medium text-[var(--ink-muted)]">Total</td>
-                  <td className="pt-2 text-right font-mono text-xs font-medium">
+                  <td className="pt-2.5 text-sm font-bold text-[var(--ink-muted)]">Total</td>
+                  <td className="pt-2.5 text-right font-mono text-sm font-bold">
                     {sku.materials.reduce((s, m) => s + m.ratio_percent, 0).toFixed(1)}%
                   </td>
                 </tr>
@@ -184,7 +187,7 @@ export default function SKUDetailPage() {
 function DL({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-2">
-      <dt className="text-xs uppercase tracking-wide text-[var(--ink-muted)] flex-shrink-0">{label}</dt>
+      <dt className="text-sm font-bold uppercase tracking-wide text-[var(--ink-muted)] flex-shrink-0">{label}</dt>
       <dd className="text-right">{children}</dd>
     </div>
   );
@@ -245,7 +248,7 @@ function SkuDetailsForm({
     setLoading(true);
     try {
       await skusApi.update(sku.id, result.data);
-      toast.success('SKU updated');
+      toast.success('Product updated');
       onSaved();
     } catch (err) {
       const info = parseApiError(err);
@@ -258,7 +261,7 @@ function SkuDetailsForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <Input label="Code" value={code} onChange={(e) => setCode(e.target.value)} error={errors.code} />
+      <Input label="SKU Code" value={code} onChange={(e) => setCode(e.target.value)} error={errors.code} />
       <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} error={errors.name} />
       <Textarea label="Description" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} maxLength={1000} error={errors.description} />
       <Select
@@ -286,10 +289,10 @@ function SkuDetailsForm({
       />
       <div className="flex justify-end gap-2 pt-1">
         <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={loading}>
-          <XCircle size={13} /> Cancel
+          <XCircle size={18} /> Cancel
         </Button>
         <Button type="submit" size="sm" loading={loading} disabled={loading}>
-          <Save size={13} /> Save
+          <Save size={18} /> Save
         </Button>
       </div>
     </form>
@@ -305,7 +308,7 @@ const materialsFormSchema = z.object({ materials: z.array(skuMaterialRowSchema) 
   if (d.materials.length > 0) {
     const total = d.materials.reduce((s, m) => s + m.ratio_percent, 0);
     if (Math.abs(total - 100) > 0.01) {
-      ctx.addIssue({ code: 'custom', message: `Material ratios must total 100% (currently ${total.toFixed(1)}%)`, path: ['materials'] });
+      ctx.addIssue({ code: 'custom', message: `Must add up to 100% (currently ${total.toFixed(1)}%)`, path: ['materials'] });
     }
   } else {
     ctx.addIssue({ code: 'custom', message: 'Add at least one raw material', path: ['materials'] });
@@ -361,7 +364,7 @@ function MaterialsForm({
     setLoading(true);
     try {
       await skusApi.setMaterials(sku.id, result.data.materials);
-      toast.success('Bill of materials updated');
+      toast.success('Updated what this product is made of');
       onSaved();
     } catch (err) {
       const info = parseApiError(err);
@@ -375,8 +378,8 @@ function MaterialsForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       {noMaterialsAvailable && (
-        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
-          No raw materials exist yet. Create one under Raw Materials first.
+        <p className="text-sm font-semibold text-[var(--warning)] bg-[var(--warning-tint)] border-2 border-[var(--warning)] rounded-lg px-3 py-2">
+          No raw materials yet. Add one under Raw Materials first.
         </p>
       )}
       <div className="space-y-2">
@@ -388,7 +391,6 @@ function MaterialsForm({
                 value={m.raw_material_id || ''}
                 onChange={(e) => updateMaterial(i, 'raw_material_id', Number(e.target.value))}
                 placeholder="Select material…"
-                className="text-xs py-1.5"
               />
             </div>
             <div className="w-24">
@@ -397,37 +399,34 @@ function MaterialsForm({
                 value={m.ratio_percent}
                 onChange={(e) => updateMaterial(i, 'ratio_percent', e.target.value)}
                 placeholder="%"
-                className="py-1.5 text-xs"
               />
             </div>
             <button
               type="button"
               onClick={() => removeMaterial(i)}
               disabled={materials.length === 1}
-              title="Remove material"
-              aria-label="Remove material"
-              className="text-[var(--ink-muted)] hover:text-red-600 pb-1 disabled:opacity-30"
+              className="flex items-center gap-1.5 text-sm font-bold text-[var(--ink-muted)] hover:text-[var(--danger)] min-h-11 px-2 disabled:opacity-30"
             >
-              <X size={14} />
+              <X size={18} /> Remove
             </button>
           </div>
         ))}
       </div>
-      {errors.materials && <p className="text-xs text-red-600">{errors.materials}</p>}
+      {errors.materials && <p className="text-sm font-semibold text-[var(--danger)]">{errors.materials}</p>}
       <div className="flex items-center justify-between">
         <Button type="button" variant="outline" size="sm" onClick={addMaterial} disabled={noMaterialsAvailable}>
-          <Plus size={12} /> Add
+          <Plus size={18} /> Add
         </Button>
-        <span className={`text-xs font-medium ${Math.abs(total - 100) < 0.01 ? 'text-green-600' : 'text-amber-600'}`}>
-          Total: {total.toFixed(1)}%
+        <span className={`text-sm font-bold ${Math.abs(total - 100) < 0.01 ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>
+          Adds up to: {total.toFixed(1)}%
         </span>
       </div>
       <div className="flex justify-end gap-2 pt-1">
         <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={loading}>
-          <XCircle size={13} /> Cancel
+          <XCircle size={18} /> Cancel
         </Button>
         <Button type="submit" size="sm" loading={loading} disabled={loading}>
-          <Save size={13} /> Save
+          <Save size={18} /> Save
         </Button>
       </div>
     </form>

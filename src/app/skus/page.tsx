@@ -56,10 +56,10 @@ export default function SKUsPage() {
   }, []);
 
   const columns = [
-    { key: 'code', header: 'Code', render: (row: SKU) => <span className="font-mono font-medium">{row.code}</span> },
-    { key: 'name', header: 'Name', render: (row: SKU) => <span className="font-medium">{row.name}</span> },
+    { key: 'name', header: 'Name', primary: true, render: (row: SKU) => <span className="font-medium">{row.name}</span> },
+    { key: 'code', header: 'SKU Code', render: (row: SKU) => <span className="font-mono font-medium">{row.code}</span> },
     { key: 'customer_name', header: 'Customer', render: (row: SKU) => row.customer_name || '—' },
-    { key: 'unit', header: 'Unit' },
+    { key: 'unit', header: 'Unit', hideInCard: true },
     {
       key: 'current_stock',
       header: 'Stock',
@@ -72,18 +72,18 @@ export default function SKUsPage() {
         <Badge variant={row.is_active ? 'success' : 'muted'}>{row.is_active ? 'Active' : 'Inactive'}</Badge>
       ),
     },
-    { key: 'created_at', header: 'Created', render: (row: SKU) => formatDate(row.created_at) },
+    { key: 'created_at', header: 'Created', hideInCard: true, render: (row: SKU) => formatDate(row.created_at) },
   ];
 
   return (
     <AppShell>
       <PageHeader
-        title="SKUs"
-        subtitle="Stock Keeping Units — finished products"
+        title="Products"
+        subtitle="What we sell"
         action={
           canAccess(user, 'skus', 'write') && (
             <Button onClick={() => setShowCreate(true)}>
-              <Plus size={14} /> New SKU
+              <Plus size={18} /> New Product
             </Button>
           )
         }
@@ -100,7 +100,7 @@ export default function SKUsPage() {
               keyExtractor={(r) => r.id}
               onRowClick={(r) => router.push(`/skus/${r.id}`)}
               loading={loading}
-              emptyMessage="No SKUs found. Create one to get started."
+              emptyMessage="No products found. Create one to get started."
             />
             <Pagination page={page} total={total} perPage={PER_PAGE} onChange={setPage} />
           </>
@@ -178,7 +178,7 @@ function CreateSKUModal({
     setLoading(true);
     try {
       await skusApi.create(result.data);
-      toast.success('SKU created successfully');
+      toast.success('Product created');
       onCreated();
     } catch (err) {
       const info = parseApiError(err);
@@ -193,21 +193,21 @@ function CreateSKUModal({
     <Modal
       open
       onClose={onClose}
-      title="New SKU"
-      subtitle="Create a finished product SKU"
+      title="New Product"
+      subtitle="Add a finished product"
       size="lg"
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={loading}>Cancel</Button>
           <Button loading={loading} disabled={loading} onClick={handleSubmit as unknown as React.MouseEventHandler}>
-            Create SKU
+            Create Product
           </Button>
         </>
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
-          <Input label="Code" value={code} onChange={(e) => setCode(e.target.value)} error={errors.code} placeholder="SKU-001" maxLength={50} />
+          <Input label="SKU Code" value={code} onChange={(e) => setCode(e.target.value)} error={errors.code} placeholder="SKU-001" maxLength={50} />
           <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} error={errors.name} placeholder="Product Name" maxLength={150} />
         </div>
         <Textarea label="Description" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} maxLength={1000} error={errors.description} />
@@ -230,20 +230,20 @@ function CreateSKUModal({
 
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="text-xs font-medium text-[var(--ink-light)] uppercase tracking-wide">
-              Material Composition (must total 100%)
+            <label className="text-sm font-bold text-[var(--ink-light)] uppercase tracking-wide">
+              What It&apos;s Made Of (must add up to 100%)
             </label>
             <Button variant="ghost" size="sm" type="button" onClick={addMaterial} disabled={noMaterialsAvailable}>
-              <Plus size={12} /> Add
+              <Plus size={16} /> Add
             </Button>
           </div>
           {noMaterialsAvailable && (
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mb-2">
-              No raw materials exist yet. Create one under Raw Materials before defining a bill of materials.
+            <p className="text-sm font-semibold text-[var(--warning)] bg-[var(--warning-tint)] border-2 border-[var(--warning)] rounded-lg px-3 py-2 mb-2">
+              No raw materials exist yet. Create one under Raw Materials before setting what this product is made from.
             </p>
           )}
-          <div className="text-xs text-[var(--ink-muted)] mb-2">
-            Current total: <span className={Math.abs(totalRatio - 100) < 0.01 ? 'text-green-600 font-medium' : 'text-amber-600 font-medium'}>{totalRatio.toFixed(1)}%</span>
+          <div className="text-sm text-[var(--ink-muted)] mb-2">
+            Adds up to: <span className={Math.abs(totalRatio - 100) < 0.01 ? 'text-[var(--success)] font-bold' : 'text-[var(--warning)] font-bold'}>{totalRatio.toFixed(1)}%</span>
           </div>
           <div className="space-y-2">
             {materials.map((m, i) => (
@@ -254,7 +254,6 @@ function CreateSKUModal({
                     value={m.raw_material_id || ''}
                     onChange={(e) => updateMaterial(i, 'raw_material_id', Number(e.target.value))}
                     placeholder="Select material…"
-                    className="text-xs py-1.5"
                   />
                 </div>
                 <div className="w-24">
@@ -266,23 +265,20 @@ function CreateSKUModal({
                     value={m.ratio_percent}
                     onChange={(e) => updateMaterial(i, 'ratio_percent', e.target.value)}
                     placeholder="%"
-                    className="py-1.5 text-xs"
                   />
                 </div>
                 <button
                   type="button"
                   onClick={() => removeMaterial(i)}
                   disabled={materials.length === 1}
-                  title="Remove material"
-                  aria-label="Remove material"
-                  className="text-[var(--ink-muted)] hover:text-red-600 pb-1 disabled:opacity-30"
+                  className="flex items-center gap-1.5 text-sm font-bold text-[var(--ink-muted)] hover:text-[var(--danger)] min-h-11 px-2 disabled:opacity-30"
                 >
-                  <X size={14} />
+                  <X size={18} /> Remove
                 </button>
               </div>
             ))}
           </div>
-          {errors.materials && <p className="text-xs text-red-600 mt-1.5">{errors.materials}</p>}
+          {errors.materials && <p className="text-sm font-semibold text-[var(--danger)] mt-1.5">{errors.materials}</p>}
         </div>
       </form>
     </Modal>

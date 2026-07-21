@@ -47,14 +47,14 @@ export default function ConsumablesPage() {
   }, [error]);
 
   const columns = [
-    { key: 'name', header: 'Name', render: (c: Consumable) => <span className="font-medium">{c.name}</span> },
-    { key: 'code', header: 'Code', render: (c: Consumable) => c.code ? <span className="font-mono">{c.code}</span> : '—' },
+    { key: 'name', header: 'Name', primary: true, render: (c: Consumable) => <span className="font-medium">{c.name}</span> },
+    { key: 'code', header: 'Code', hideInCard: true, render: (c: Consumable) => c.code ? <span className="font-mono">{c.code}</span> : '—' },
     {
       key: 'current_stock',
       header: 'Stock',
-      render: (c: Consumable) => <span className={`font-mono ${c.current_stock <= 0 ? 'text-red-600' : ''}`}>{formatQty(c.current_stock, c.unit)}</span>,
+      render: (c: Consumable) => <span className={`font-mono ${c.current_stock <= 0 ? 'text-[var(--danger)]' : ''}`}>{formatQty(c.current_stock, c.unit)}</span>,
     },
-    { key: 'created_at', header: 'Added', render: (c: Consumable) => formatDate(c.created_at) },
+    { key: 'created_at', header: 'Added', hideInCard: true, render: (c: Consumable) => formatDate(c.created_at) },
     ...(canStock
       ? [
           {
@@ -63,11 +63,9 @@ export default function ConsumablesPage() {
             render: (c: Consumable) => (
               <button
                 onClick={(e) => { e.stopPropagation(); setShowAdjust({ id: c.id, name: c.name, stock: c.current_stock, unit: c.unit }); }}
-                className="p-1 text-[var(--ink-muted)] hover:text-[var(--accent)]"
-                title="Adjust stock"
-                aria-label="Adjust stock"
+                className="flex items-center gap-1.5 min-h-11 px-3 rounded-lg text-sm font-bold text-[var(--ink-muted)] hover:text-[var(--accent)] hover:bg-[var(--paper-sunken)] transition-colors"
               >
-                <Pencil size={12} />
+                <Pencil size={18} /> Adjust Stock
               </button>
             ),
           },
@@ -79,11 +77,11 @@ export default function ConsumablesPage() {
     <AppShell>
       <PageHeader
         title="Consumables"
-        subtitle="Tools and materials consumed during production"
+        subtitle="Tools and supplies used up while making products"
         action={
           canWrite && (
             <Button onClick={() => setShowCreate(true)}>
-              <Plus size={14} /> New Consumable
+              <Plus size={18} /> New Consumable
             </Button>
           )
         }
@@ -210,14 +208,14 @@ function AdjustStockModal({ id, name, stock, unit, onClose, onDone }: { id: numb
       footer={<><Button variant="ghost" onClick={onClose} disabled={loading}>Cancel</Button><Button loading={loading} disabled={loading} onClick={handleSubmit as unknown as React.MouseEventHandler}>Adjust</Button></>}
     >
       <form onSubmit={handleSubmit} className="space-y-3">
-        <div className="text-sm bg-[var(--paper-dark)] px-3 py-2 rounded-md">
-          Current stock: <span className="font-mono font-medium">{formatQty(stock, unit)}</span>
+        <div className="text-base bg-[var(--paper-sunken)] px-3 py-2.5 rounded-xl">
+          Current stock: <span className="font-mono font-bold">{formatQty(stock, unit)}</span>
         </div>
         <div className="flex gap-2">
           <Select
             options={[
-              { value: 'receive', label: 'Receive' },
-              { value: 'consume', label: 'Consume' },
+              { value: 'receive', label: 'Add Stock' },
+              { value: 'consume', label: 'Use Stock' },
             ]}
             value={direction}
             onChange={(e) => setDirection(e.target.value as typeof direction)}
@@ -225,14 +223,14 @@ function AdjustStockModal({ id, name, stock, unit, onClose, onDone }: { id: numb
           />
           <Input type="number" step="0.001" min="0" value={adjustment} onChange={(e) => setAdjustment(e.target.value)} error={errors.quantity} placeholder="Qty" />
         </div>
-        {errors.quantity && <p className="text-xs text-red-600 -mt-2">{errors.quantity}</p>}
+        {errors.quantity && <p className="text-sm font-semibold text-[var(--danger)] -mt-2">{errors.quantity}</p>}
         {qtyNum != null && !errors.quantity && (
-          <div className="text-xs text-[var(--ink-muted)]">
-            {direction === 'receive' && <span className="flex items-center gap-1"><TrendingUp size={12} /> New stock: {formatQty(stock + qtyNum, unit)}</span>}
-            {direction === 'consume' && <span className="flex items-center gap-1"><TrendingDown size={12} /> New stock: {formatQty(Math.max(0, stock - qtyNum), unit)}</span>}
+          <div className="text-sm text-[var(--ink-muted)]">
+            {direction === 'receive' && <span className="flex items-center gap-1.5"><TrendingUp size={18} /> New stock: {formatQty(stock + qtyNum, unit)}</span>}
+            {direction === 'consume' && <span className="flex items-center gap-1.5"><TrendingDown size={18} /> New stock: {formatQty(Math.max(0, stock - qtyNum), unit)}</span>}
           </div>
         )}
-        <Input label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} error={errors.reason} placeholder="e.g. Received from vendor, consumed in production" maxLength={500} />
+        <Input label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} error={errors.reason} placeholder="e.g. From vendor, used in production" maxLength={500} />
       </form>
     </Modal>
   );

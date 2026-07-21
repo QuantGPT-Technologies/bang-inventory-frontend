@@ -46,7 +46,7 @@ export default function WorkflowTemplatesPage() {
   }, [error]);
 
   const columns = [
-    { key: 'name', header: 'Name', render: (row: WorkflowTemplate) => <span className="font-medium">{row.name}</span> },
+    { key: 'name', header: 'Name', render: (row: WorkflowTemplate) => <span className="font-bold">{row.name}</span> },
     { key: 'description', header: 'Description', render: (row: WorkflowTemplate) => row.description || '—' },
     {
       key: 'entity_type',
@@ -81,7 +81,7 @@ export default function WorkflowTemplatesPage() {
         action={
           canAccess(user, 'workflow_templates', 'write') && (
             <Button onClick={() => setShowCreate(true)}>
-              <Plus size={14} /> New Workflow Template
+              <Plus size={18} /> New Workflow Template
             </Button>
           )
         }
@@ -186,33 +186,33 @@ function CreateWorkflowTemplateModal({
         <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} error={errors.name} placeholder="Standard 6-Step Production Pipeline" maxLength={150} />
         <Textarea label="Description" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} maxLength={2000} error={errors.description} />
         <div>
-          <label className="text-xs font-medium text-[var(--ink-light)] uppercase tracking-wide block mb-2">
+          <label className="text-sm font-bold text-[var(--ink-light)] uppercase tracking-wide block mb-2">
             Applies To
           </label>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => setEntityType('lot')}
-              className={`flex-1 rounded-md border px-3 py-2 text-left text-sm transition-colors ${
+              className={`flex-1 rounded-xl border-2 px-4 py-3 min-h-[52px] text-left text-base transition-colors ${
                 entityType === 'lot'
-                  ? 'border-[var(--accent)] bg-[var(--accent-muted)] text-[var(--ink)]'
-                  : 'border-[var(--border)] bg-[var(--paper)] text-[var(--ink-muted)] hover:bg-[var(--paper-dark)]'
+                  ? 'border-[var(--accent)] bg-[var(--accent-tint)] text-[var(--ink)]'
+                  : 'border-[var(--border-strong)] bg-[var(--paper-raised)] text-[var(--ink-muted)] hover:bg-[var(--paper-sunken)]'
               }`}
             >
-              <span className="font-medium block">Lots</span>
-              <span className="text-xs">Per-SKU production pipeline</span>
+              <span className="font-bold block">Lots</span>
+              <span className="text-sm">Per-SKU production pipeline</span>
             </button>
             <button
               type="button"
               onClick={() => setEntityType('batch')}
-              className={`flex-1 rounded-md border px-3 py-2 text-left text-sm transition-colors ${
+              className={`flex-1 rounded-xl border-2 px-4 py-3 min-h-[52px] text-left text-base transition-colors ${
                 entityType === 'batch'
-                  ? 'border-[var(--accent)] bg-[var(--accent-muted)] text-[var(--ink)]'
-                  : 'border-[var(--border)] bg-[var(--paper)] text-[var(--ink-muted)] hover:bg-[var(--paper-dark)]'
+                  ? 'border-[var(--accent)] bg-[var(--accent-tint)] text-[var(--ink)]'
+                  : 'border-[var(--border-strong)] bg-[var(--paper-raised)] text-[var(--ink-muted)] hover:bg-[var(--paper-sunken)]'
               }`}
             >
-              <span className="font-medium block">Batches</span>
-              <span className="text-xs">Blend & split flow</span>
+              <span className="font-bold block">Batches</span>
+              <span className="text-sm">Blend & split flow</span>
             </button>
           </div>
         </div>

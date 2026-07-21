@@ -93,9 +93,9 @@ export function QualityCheckActionModal({
     } catch (err) {
       const info = parseApiError(err);
       if (info.isForbidden) {
-        toast.error("You don't have permission to submit this quality result.");
+        toast.error("You are not allowed to submit this quality check.");
       } else if (info.isConflict) {
-        toast.error('Someone else already decided this step.');
+        toast.error('Another person already decided this step.');
       } else {
         toast.error(info.message);
       }
@@ -127,8 +127,8 @@ export function QualityCheckActionModal({
       }
     >
       <form onSubmit={handleSubmit} className="space-y-3">
-        <p className="text-sm text-[var(--ink-muted)]">
-          Recording a quality result for <strong>{label}</strong> on lot <strong>{lot.lot_number}</strong>.
+        <p className="text-base text-[var(--ink-muted)]">
+          Enter the quality check result for <strong className="text-[var(--ink)]">{label}</strong> on lot <strong className="text-[var(--ink)]">{lot.lot_number}</strong>.
         </p>
         <Select
           label="Result"
@@ -138,7 +138,7 @@ export function QualityCheckActionModal({
           error={errors.result}
         />
         <div className="space-y-2">
-          <label className="text-xs font-medium text-[var(--ink-light)] uppercase tracking-wide">Measurements (optional)</label>
+          <label className="text-sm font-bold text-[var(--ink-light)] uppercase tracking-wide">Measurements (optional)</label>
           {rows.map((row, i) => (
             <div key={i} className="flex gap-2 items-start">
               <Input placeholder="field" value={row.key} onChange={(e) => updateRow(i, 'key', e.target.value)} />
@@ -146,18 +146,17 @@ export function QualityCheckActionModal({
               <button
                 type="button"
                 onClick={() => removeRow(i)}
-                className="text-[var(--ink-muted)] hover:text-red-600 p-2 flex-shrink-0"
-                title="Remove measurement"
-                aria-label="Remove measurement"
+                className="flex items-center gap-1.5 text-sm font-bold text-[var(--ink-muted)] hover:text-[var(--danger)] min-h-[52px] px-2.5 flex-shrink-0"
               >
-                <Trash2 size={14} />
+                <Trash2 size={18} />
+                Remove
               </button>
             </div>
           ))}
-          <button type="button" onClick={addRow} className="text-xs text-[var(--accent)] hover:underline flex items-center gap-1">
-            <Plus size={12} /> Add measurement
+          <button type="button" onClick={addRow} className="flex items-center gap-1.5 text-sm font-bold text-[var(--accent)] hover:underline min-h-11 px-1">
+            <Plus size={16} /> Add measurement
           </button>
-          {errors.measurements && <p className="text-xs text-red-600">{errors.measurements}</p>}
+          {errors.measurements && <p className="text-sm font-semibold text-[var(--danger)]">{errors.measurements}</p>}
         </div>
         <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} maxLength={1000} error={errors.notes} />
       </form>

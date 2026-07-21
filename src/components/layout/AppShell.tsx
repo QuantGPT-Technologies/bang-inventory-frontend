@@ -6,6 +6,7 @@ import { canAccessRoute } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { Sidebar } from './Sidebar';
 import { ToastContainer } from '@/components/ui/Toast';
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { ShieldAlert, Menu } from 'lucide-react';
 import Link from 'next/link';
 
@@ -34,7 +35,7 @@ export function AppShell({ children, fullBleed = false }: { children: React.Reac
   if (!hasHydrated || !isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-sm text-[var(--ink-muted)]">Loading…</div>
+        <div className="text-base text-[var(--ink-muted)]">Loading…</div>
       </div>
     );
   }
@@ -47,19 +48,21 @@ export function AppShell({ children, fullBleed = false }: { children: React.Reac
       <div className="flex-1 flex flex-col min-w-0">
         {/* Below `lg` the sidebar is an off-canvas drawer (see Sidebar.tsx) -- this bar is its
             only entry point on that viewport range. */}
-        <div className="lg:hidden flex items-center gap-3 px-4 py-3 border-b border-[var(--border-light)] bg-[var(--paper)] flex-shrink-0">
-          <button
-            onClick={() => setMobileNavOpen(true)}
-            aria-label="Open navigation menu"
-            className="text-[var(--ink)] p-1.5 -ml-1.5 rounded-md hover:bg-[var(--paper-dark)]"
-          >
-            <Menu size={20} />
-          </button>
-          <span className="font-semibold text-sm text-[var(--ink)]" style={{ fontFamily: 'Playfair Display, serif' }}>
-            Bang Inventory
-          </span>
+        <div className="lg:hidden flex items-center justify-between gap-3 px-4 py-3 border-b border-[var(--border)] bg-[var(--paper-raised)] flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMobileNavOpen(true)}
+              className="flex items-center gap-1.5 text-[var(--ink)] min-h-11 min-w-11 justify-center -ml-2 rounded-lg hover:bg-[var(--paper-sunken)]"
+            >
+              <Menu size={24} />
+            </button>
+            <span className="font-bold text-base text-[var(--ink)]">
+              Bang Inventory
+            </span>
+          </div>
+          <ThemeToggle className="!px-2" />
         </div>
-        <main className={cn('flex-1 bg-[var(--paper-dark)]', fullBleed ? 'overflow-hidden' : 'overflow-y-auto')}>
+        <main className={cn('flex-1 bg-[var(--paper-sunken)]', fullBleed ? 'overflow-hidden' : 'overflow-y-auto')}>
           <div className={fullBleed ? 'h-full' : 'max-w-7xl mx-auto px-6 py-6'}>
             {allowed ? children : <AccessDenied />}
           </div>
@@ -72,18 +75,18 @@ export function AppShell({ children, fullBleed = false }: { children: React.Reac
 
 function AccessDenied() {
   return (
-    <div className="flex flex-col items-center justify-center text-center py-24 gap-3">
-      <div className="w-14 h-14 rounded-full bg-red-100 text-red-600 flex items-center justify-center">
-        <ShieldAlert size={24} />
+    <div className="flex flex-col items-center justify-center text-center py-24 gap-4">
+      <div className="w-16 h-16 rounded-full bg-[var(--danger-tint)] text-[var(--danger)] flex items-center justify-center">
+        <ShieldAlert size={28} />
       </div>
-      <h1 className="text-xl font-bold text-[var(--ink)]" style={{ fontFamily: 'Playfair Display, serif' }}>
-        Access Denied
+      <h1 className="text-2xl font-bold text-[var(--ink)]">
+        You Can&apos;t Open This Page
       </h1>
-      <p className="text-sm text-[var(--ink-muted)] max-w-sm">
-        Your role does not have permission to view this page. Contact an administrator if you believe this is a mistake.
+      <p className="text-base text-[var(--ink-muted)] max-w-sm">
+        Your account doesn&apos;t have access to this page. If you think that&apos;s wrong, ask your manager.
       </p>
-      <Link href="/dashboard" className="text-sm text-[var(--accent)] hover:underline mt-2">
-        Return to dashboard
+      <Link href="/dashboard" className="text-base font-bold text-[var(--accent)] hover:underline mt-2">
+        Go to Home
       </Link>
     </div>
   );

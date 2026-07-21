@@ -53,9 +53,9 @@ export function ToastContainer() {
 
   const icons = { success: CheckCircle, error: XCircle, info: Info };
   const colors = {
-    success: 'bg-green-50 border-green-300 text-green-800',
-    error: 'bg-red-50 border-red-300 text-red-800',
-    info: 'bg-blue-50 border-blue-300 text-blue-800',
+    success: 'bg-[var(--success-tint)] border-[var(--success)] text-[var(--success)]',
+    error: 'bg-[var(--danger-tint)] border-[var(--danger)] text-[var(--danger)]',
+    info: 'bg-[var(--info-tint)] border-[var(--info)] text-[var(--info)]',
   };
 
   return (
@@ -65,7 +65,7 @@ export function ToastContainer() {
     <div
       role="status"
       aria-live="polite"
-      className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 min-w-[280px] max-w-[400px]"
+      className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 min-w-[280px] max-w-[420px]"
     >
       {toasts.map((t) => {
         const Icon = icons[t.type];
@@ -80,18 +80,18 @@ export function ToastContainer() {
             onFocus={() => clearTimeout(timers.current.get(t.id))}
             onBlur={() => schedule(t.id)}
             className={cn(
-              'flex items-start gap-3 px-4 py-3 rounded-lg border shadow-lg text-sm',
+              'flex items-start gap-3 px-4 py-3.5 rounded-xl border-2 shadow-lg text-base font-semibold',
               colors[t.type]
             )}
           >
-            <Icon size={16} className="mt-0.5 flex-shrink-0" />
-            <span className="flex-1">{t.message}</span>
+            <Icon size={22} className="mt-0.5 flex-shrink-0" />
+            <span className="flex-1 text-[var(--ink)]">{t.message}</span>
             <button
               onClick={() => dismiss(t.id)}
-              aria-label="Dismiss notification"
-              className="opacity-60 hover:opacity-100"
+              className="flex items-center gap-1 text-sm font-bold opacity-70 hover:opacity-100 min-h-9 px-1"
             >
-              <X size={14} />
+              <X size={18} />
+              Dismiss
             </button>
           </div>
         );

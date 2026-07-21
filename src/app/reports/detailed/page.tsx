@@ -98,21 +98,21 @@ export default function DetailedReportsPage() {
               className="w-52"
               placeholder=""
             />
-            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-36 text-xs py-1.5" />
-            <span className="text-xs text-[var(--ink-muted)]">to</span>
-            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-36 text-xs py-1.5" />
+            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-40" />
+            <span className="text-sm text-[var(--ink-muted)]">to</span>
+            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-40" />
             <Button onClick={runReport} loading={loading} disabled={loading}>
-              <FileText size={14} /> Run Report
+              <FileText size={18} /> Run Report
             </Button>
           </div>
         }
       />
-      {dateError && <p className="text-xs text-red-600 -mt-4 mb-4">{dateError}</p>}
+      {dateError && <p className="text-sm font-semibold text-[var(--danger)] -mt-4 mb-4">{dateError}</p>}
 
       {error ? (
         <Card><ErrorState error={error} onRetry={runReport} /></Card>
       ) : loading && !data ? (
-        <Card><div className="p-8 text-center text-sm text-[var(--ink-muted)]">Loading report…</div></Card>
+        <Card><div className="p-8 text-center text-base text-[var(--ink-muted)]">Loading report…</div></Card>
       ) : (
         <>
           {reportType === 'material' && data && <MaterialUsage data={data} />}
@@ -132,7 +132,7 @@ function MaterialUsage({ data }: { data: Record<string, unknown> }) {
     <div className="space-y-4">
       {rows.length === 0 ? (
         <Card title="Material Usage">
-          <p className="text-sm text-[var(--ink-muted)] italic">No material usage data available for the selected range.</p>
+          <p className="text-base text-[var(--ink-muted)] italic">No material usage data available for the selected range.</p>
         </Card>
       ) : (
         groups.map(([unit, group]) => (
@@ -157,7 +157,7 @@ function RawMaterialUsage({ data }: { data: Record<string, unknown> }) {
     <div className="space-y-4">
       {rows.length === 0 ? (
         <Card title="Raw Material Usage">
-          <p className="text-sm text-[var(--ink-muted)] italic">No raw material usage data available for the selected range.</p>
+          <p className="text-base text-[var(--ink-muted)] italic">No raw material usage data available for the selected range.</p>
         </Card>
       ) : (
         groups.map(([unit, group]) => (
@@ -184,7 +184,7 @@ function RawMaterialUsage({ data }: { data: Record<string, unknown> }) {
                 key: 'variance_qty',
                 header: 'Variance',
                 render: (r: (typeof rows)[number]) => (
-                  <span className={`font-mono ${r.variance_qty > 0 ? 'text-[var(--accent)]' : r.variance_qty < 0 ? 'text-[var(--green)]' : ''}`}>
+                  <span className={`font-mono font-semibold ${r.variance_qty > 0 ? 'text-[var(--warning)]' : r.variance_qty < 0 ? 'text-[var(--success)]' : ''}`}>
                     {r.variance_qty > 0 ? '+' : ''}
                     {formatQty(r.variance_qty, r.unit)}
                   </span>

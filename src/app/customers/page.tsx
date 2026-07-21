@@ -43,23 +43,23 @@ export default function CustomersPage() {
   }, [error]);
 
   const columns = [
-    { key: 'name', header: 'Name', render: (c: Customer) => <span className="font-medium">{c.name}</span> },
-    { key: 'code', header: 'Code', render: (c: Customer) => c.code ? <span className="font-mono">{c.code}</span> : '—' },
+    { key: 'name', header: 'Name', primary: true, render: (c: Customer) => <span className="font-medium">{c.name}</span> },
+    { key: 'code', header: 'Code', hideInCard: true, render: (c: Customer) => c.code ? <span className="font-mono">{c.code}</span> : '—' },
     { key: 'contact_person', header: 'Contact', render: (c: Customer) => c.contact_person || '—' },
     { key: 'email', header: 'Email', render: (c: Customer) => c.email || '—' },
     { key: 'phone', header: 'Phone', render: (c: Customer) => c.phone || '—' },
-    { key: 'created_at', header: 'Created', render: (c: Customer) => formatDate(c.created_at) },
+    { key: 'created_at', header: 'Created', hideInCard: true, render: (c: Customer) => formatDate(c.created_at) },
   ];
 
   return (
     <AppShell>
       <PageHeader
         title="Customers"
-        subtitle="External customers for finished products"
+        subtitle="Customers who buy finished products"
         action={
           canAccess(user, 'customers', 'write') && (
             <Button onClick={() => setShowCreate(true)}>
-              <Plus size={14} /> New Customer
+              <Plus size={18} /> New Customer
             </Button>
           )
         }

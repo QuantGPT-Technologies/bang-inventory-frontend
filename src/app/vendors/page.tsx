@@ -42,23 +42,23 @@ export default function VendorsPage() {
   }, [error]);
 
   const columns = [
-    { key: 'name', header: 'Name', render: (v: Vendor) => <span className="font-medium">{v.name}</span> },
-    { key: 'code', header: 'Code', render: (v: Vendor) => v.code ? <span className="font-mono">{v.code}</span> : '—' },
+    { key: 'name', header: 'Name', primary: true, render: (v: Vendor) => <span className="font-medium">{v.name}</span> },
+    { key: 'code', header: 'Code', hideInCard: true, render: (v: Vendor) => v.code ? <span className="font-mono">{v.code}</span> : '—' },
     { key: 'contact_person', header: 'Contact', render: (v: Vendor) => v.contact_person || '—' },
     { key: 'email', header: 'Email', render: (v: Vendor) => v.email || '—' },
     { key: 'phone', header: 'Phone', render: (v: Vendor) => v.phone || '—' },
-    { key: 'created_at', header: 'Created', render: (v: Vendor) => formatDate(v.created_at) },
+    { key: 'created_at', header: 'Created', hideInCard: true, render: (v: Vendor) => formatDate(v.created_at) },
   ];
 
   return (
     <AppShell>
       <PageHeader
         title="Vendors"
-        subtitle="Suppliers for raw materials"
+        subtitle="Suppliers who provide raw materials"
         action={
           canAccess(user, 'vendors', 'write') && (
             <Button onClick={() => setShowCreate(true)}>
-              <Plus size={14} /> New Vendor
+              <Plus size={18} /> New Vendor
             </Button>
           )
         }

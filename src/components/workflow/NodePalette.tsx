@@ -24,10 +24,7 @@ export function NodePalette() {
 
   return (
     <aside className="w-56 flex-shrink-0 border-r border-[var(--border-light)] bg-[var(--paper)] overflow-y-auto p-3">
-      <h3
-        className="text-xs font-semibold text-[var(--ink-light)] uppercase tracking-wide mb-2"
-        style={{ fontFamily: 'Playfair Display, serif' }}
-      >
+      <h3 className="text-xs font-semibold text-[var(--ink-light)] uppercase tracking-wide mb-2">
         Node Types
       </h3>
       {isReadOnly && (

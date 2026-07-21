@@ -52,17 +52,17 @@ export default function RawMaterialsPage() {
   }, []);
 
   const columns = [
-    { key: 'name', header: 'Name', render: (r: RawMaterial) => <span className="font-medium">{r.name}</span> },
-    { key: 'code', header: 'Code', render: (r: RawMaterial) => r.code ? <span className="font-mono">{r.code}</span> : '—' },
+    { key: 'name', header: 'Name', primary: true, render: (r: RawMaterial) => <span className="font-medium">{r.name}</span> },
+    { key: 'code', header: 'Code', hideInCard: true, render: (r: RawMaterial) => r.code ? <span className="font-mono">{r.code}</span> : '—' },
     { key: 'vendor_name', header: 'Vendor', render: (r: RawMaterial) => r.vendor_name || '—' },
     {
       key: 'current_stock',
       header: 'Stock',
       render: (r: RawMaterial) => (
-        <span className={`font-mono ${r.current_stock <= 0 ? 'text-red-600' : ''}`}>{formatQty(r.current_stock, r.unit)}</span>
+        <span className={`font-mono ${r.current_stock <= 0 ? 'text-[var(--danger)]' : ''}`}>{formatQty(r.current_stock, r.unit)}</span>
       ),
     },
-    { key: 'created_at', header: 'Added', render: (r: RawMaterial) => formatDate(r.created_at) },
+    { key: 'created_at', header: 'Added', hideInCard: true, render: (r: RawMaterial) => formatDate(r.created_at) },
     ...(canStock
       ? [
           {
@@ -71,11 +71,9 @@ export default function RawMaterialsPage() {
             render: (r: RawMaterial) => (
               <button
                 onClick={(e) => { e.stopPropagation(); setShowAdjust({ id: r.id, name: r.name, stock: r.current_stock, unit: r.unit }); }}
-                className="p-1 text-[var(--ink-muted)] hover:text-[var(--accent)]"
-                title="Adjust stock"
-                aria-label="Adjust stock"
+                className="flex items-center gap-1.5 min-h-11 px-3 rounded-lg text-sm font-bold text-[var(--ink-muted)] hover:text-[var(--accent)] hover:bg-[var(--paper-sunken)] transition-colors"
               >
-                <Pencil size={12} />
+                <Pencil size={18} /> Adjust Stock
               </button>
             ),
           },
@@ -87,11 +85,11 @@ export default function RawMaterialsPage() {
     <AppShell>
       <PageHeader
         title="Raw Materials"
-        subtitle="Base materials for blending"
+        subtitle="Materials used to make products"
         action={
           canWrite && (
             <Button onClick={() => setShowCreate(true)}>
-              <Plus size={14} /> New Material
+              <Plus size={18} /> New Material
             </Button>
           )
         }
@@ -230,14 +228,14 @@ function AdjustStockModal({ id, name, stock, unit, onClose, onDone }: { id: numb
       footer={<><Button variant="ghost" onClick={onClose} disabled={loading}>Cancel</Button><Button loading={loading} disabled={loading} onClick={handleSubmit as unknown as React.MouseEventHandler}>Adjust</Button></>}
     >
       <form onSubmit={handleSubmit} className="space-y-3">
-        <div className="text-sm bg-[var(--paper-dark)] px-3 py-2 rounded-md">
-          Current stock: <span className="font-mono font-medium">{formatQty(stock, unit)}</span>
+        <div className="text-base bg-[var(--paper-sunken)] px-3 py-2.5 rounded-xl">
+          Current stock: <span className="font-mono font-bold">{formatQty(stock, unit)}</span>
         </div>
         <div className="flex gap-2">
           <Select
             options={[
-              { value: 'receive', label: 'Receive' },
-              { value: 'consume', label: 'Consume' },
+              { value: 'receive', label: 'Add Stock' },
+              { value: 'consume', label: 'Use Stock' },
             ]}
             value={direction}
             onChange={(e) => setDirection(e.target.value as typeof direction)}
@@ -245,14 +243,14 @@ function AdjustStockModal({ id, name, stock, unit, onClose, onDone }: { id: numb
           />
           <Input type="number" step="0.001" min="0" value={adjustment} onChange={(e) => setAdjustment(e.target.value)} error={errors.quantity} placeholder="Qty" />
         </div>
-        {errors.quantity && <p className="text-xs text-red-600 -mt-2">{errors.quantity}</p>}
+        {errors.quantity && <p className="text-sm font-semibold text-[var(--danger)] -mt-2">{errors.quantity}</p>}
         {qtyNum != null && !errors.quantity && (
-          <div className="text-xs text-[var(--ink-muted)]">
-            {direction === 'receive' && <span className="flex items-center gap-1"><TrendingUp size={12} /> New stock: {formatQty(stock + qtyNum, unit)}</span>}
-            {direction === 'consume' && <span className="flex items-center gap-1"><TrendingDown size={12} /> New stock: {formatQty(Math.max(0, stock - qtyNum), unit)}</span>}
+          <div className="text-sm text-[var(--ink-muted)]">
+            {direction === 'receive' && <span className="flex items-center gap-1.5"><TrendingUp size={18} /> New stock: {formatQty(stock + qtyNum, unit)}</span>}
+            {direction === 'consume' && <span className="flex items-center gap-1.5"><TrendingDown size={18} /> New stock: {formatQty(Math.max(0, stock - qtyNum), unit)}</span>}
           </div>
         )}
-        <Input label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} error={errors.reason} placeholder="e.g. Received from vendor, consumed in production" maxLength={500} />
+        <Input label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} error={errors.reason} placeholder="e.g. From vendor, used in production" maxLength={500} />
       </form>
     </Modal>
   );

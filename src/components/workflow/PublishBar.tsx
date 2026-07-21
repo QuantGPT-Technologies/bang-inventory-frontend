@@ -87,7 +87,7 @@ export function PublishBar() {
   return (
     <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-[var(--border-light)] bg-[var(--paper)] flex-shrink-0">
       <div className="flex items-center gap-3 min-w-0">
-        <h1 className="text-sm font-semibold text-[var(--ink)] truncate" style={{ fontFamily: 'Playfair Display, serif' }}>
+        <h1 className="text-sm font-semibold text-[var(--ink)] truncate">
           {templateName || 'Workflow Template'}
         </h1>
         <Badge variant={versionStatus === 'published' ? 'success' : 'muted'}>

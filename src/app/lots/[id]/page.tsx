@@ -9,7 +9,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { toast } from '@/components/ui/Toast';
 import { lotsApi, consumablesApi } from '@/lib/api';
 import { Lot, Consumable, WorkflowNodeType, LotWorkflowGraph, ProductionStepConfig, ApprovalConfig } from '@/lib/types';
-import { cn, formatDateTime, formatQty, getNodeLabel, STEP_SCRAP_TYPES, SKIPPABLE_STEPS, LOT_STATUS_LABELS, STEP_STATUS_LABELS, ROLE_LABELS } from '@/lib/utils';
+import { cn, formatDateTime, formatQty, getNodeLabel, STEP_SCRAP_TYPES, SKIPPABLE_STEPS, LOT_STATUS_LABELS, STEP_STATUS_LABELS, ROLE_LABELS, SCRAP_TYPE_LABELS } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import { useAsyncQuery } from '@/lib/useAsync';
@@ -107,9 +107,9 @@ export default function LotDetailPage() {
   // Only the FIRST load blanks the page -- a reload after an action (or the graph's own
   // background refresh) keeps everything on screen instead of tearing it down and repainting,
   // which otherwise makes every single action feel like a full page reload.
-  if (loading && !lot) return <AppShell><div className="p-8 text-center text-[var(--ink-muted)]">Loading…</div></AppShell>;
+  if (loading && !lot) return <AppShell><div className="p-8 text-center text-base text-[var(--ink-muted)]">Loading…</div></AppShell>;
   if (error && !lot) return <AppShell><ErrorState error={error} onRetry={error.isNotFound ? undefined : reload} /></AppShell>;
-  if (!lot) return <AppShell><div className="p-8 text-center text-[var(--ink-muted)]">Lot not found.</div></AppShell>;
+  if (!lot) return <AppShell><div className="p-8 text-center text-base text-[var(--ink-muted)]">Lot not found.</div></AppShell>;
 
   const canStep = canAccess(user, 'lots', 'step');
   const canSkip = canAccess(user, 'lots', 'skip');
@@ -157,47 +157,47 @@ export default function LotDetailPage() {
     if (currentNode.node_type === 'production_step' && currentNode.status === 'pending') {
       primaryAction = canStep ? (
         <Button onClick={() => setActionModal({ kind: 'production', type: 'start', nodeKey: currentNode.node_key, scrapTypes })}>
-          <Play size={15} /> Start {label}
+          <Play size={18} /> Start {label}
         </Button>
       ) : (
-        <span className="text-sm text-[var(--ink-muted)] italic">Waiting on Production to start {label}</span>
+        <span className="text-base text-[var(--ink-muted)] italic">Waiting for Production to start {label}</span>
       );
     } else if (currentNode.node_type === 'production_step' && currentNode.status === 'in_progress') {
       primaryAction = canStep ? (
         <Button onClick={() => setActionModal({ kind: 'production', type: 'complete', nodeKey: currentNode.node_key, scrapTypes })}>
-          <CheckCircle size={15} /> Complete {label}
+          <CheckCircle size={18} /> Finish {label}
         </Button>
       ) : (
-        <span className="text-sm text-[var(--ink-muted)] italic">Waiting on Production to complete {label}</span>
+        <span className="text-base text-[var(--ink-muted)] italic">Waiting for Production to finish {label}</span>
       );
     } else if (currentNode.node_type === 'approval') {
       const requiredRole = (currentNode.config as ApprovalConfig)?.required_role;
       primaryAction = canApprove ? (
         <div className="flex gap-2">
           <Button onClick={() => setActionModal({ kind: 'approval', decision: 'approved', nodeKey: currentNode.node_key })}>
-            <Check size={15} /> Approve {label}
+            <Check size={18} /> Approve {label}
           </Button>
           <Button variant="danger" onClick={() => setActionModal({ kind: 'approval', decision: 'rejected', nodeKey: currentNode.node_key })}>
-            <X size={15} /> Reject
+            <X size={18} /> Reject
           </Button>
         </div>
       ) : (
-        <span className="text-sm text-[var(--ink-muted)] italic">
-          Waiting on {requiredRole ? ROLE_LABELS[requiredRole] : 'an approver'} to review {label}
+        <span className="text-base text-[var(--ink-muted)] italic">
+          Waiting for {requiredRole ? ROLE_LABELS[requiredRole] : 'an approver'} to check {label}
         </span>
       );
     } else if (currentNode.node_type === 'quality_check') {
       primaryAction = canSubmitQuality ? (
         <div className="flex gap-2">
           <Button onClick={() => setActionModal({ kind: 'quality', result: 'pass', nodeKey: currentNode.node_key })}>
-            <CheckCircle size={15} /> Pass {label}
+            <CheckCircle size={18} /> Pass {label}
           </Button>
           <Button variant="danger" onClick={() => setActionModal({ kind: 'quality', result: 'fail', nodeKey: currentNode.node_key })}>
-            <XCircle size={15} /> Fail
+            <XCircle size={18} /> Fail
           </Button>
         </div>
       ) : (
-        <span className="text-sm text-[var(--ink-muted)] italic">Waiting on quality inspection for {label}</span>
+        <span className="text-base text-[var(--ink-muted)] italic">Waiting for a quality check on {label}</span>
       );
     }
   }
@@ -213,7 +213,7 @@ export default function LotDetailPage() {
         action={
           <div className="flex items-center gap-3">
             {primaryAction}
-            <Badge variant={lotStatusBadge(lot.status)} className="text-sm px-3 py-1">
+            <Badge variant={lotStatusBadge(lot.status)} className="text-base px-3 py-1.5">
               {LOT_STATUS_LABELS[lot.status] || lot.status}
             </Badge>
           </div>
@@ -223,9 +223,9 @@ export default function LotDetailPage() {
       <div className={cn('grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 transition-opacity duration-150', loading && 'opacity-60')}>
         {/* Info */}
         <Card title="Lot Details">
-          <dl className="space-y-3 text-sm">
-            <DL label="Lot Number"><span className="font-mono font-semibold">{lot.lot_number}</span></DL>
-            <DL label="Batch"><span className="font-mono text-[var(--accent)]">{lot.batch_number || `#${lot.batch_id}`}</span></DL>
+          <dl className="space-y-3 text-base">
+            <DL label="Lot Number"><span className="font-mono font-bold">{lot.lot_number}</span></DL>
+            <DL label="Batch"><span className="font-mono font-semibold text-[var(--accent)]">{lot.batch_number || `#${lot.batch_id}`}</span></DL>
             <DL label="SKU">{lot.sku_code || `#${lot.sku_id}`}</DL>
             <DL label="Quantity">{formatQty(lot.quantity, lot.unit)}</DL>
             {lot.current_step && <DL label="Current Step">{getNodeLabel(lot.current_step)}</DL>}
@@ -235,63 +235,61 @@ export default function LotDetailPage() {
 
         {/* Pipeline */}
         <Card
-          title="Production Pipeline"
+          title="Production Steps"
           className="lg:col-span-2"
           action={
-            <div className="flex items-center gap-0.5 rounded-md border border-[var(--border-light)] p-0.5">
+            <div className="flex items-center gap-0.5 rounded-lg border border-[var(--border)] p-0.5">
               <button
                 onClick={() => setPipelineView('list')}
                 className={cn(
-                  'flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors',
+                  'flex items-center gap-1.5 px-3 min-h-11 rounded-md text-sm font-bold transition-colors',
                   pipelineView === 'list'
-                    ? 'bg-[var(--accent)] text-[var(--paper)]'
-                    : 'text-[var(--ink-muted)] hover:bg-[var(--paper-dark)]'
+                    ? 'bg-[var(--accent)] text-white'
+                    : 'text-[var(--ink-muted)] hover:bg-[var(--paper-sunken)]'
                 )}
-                title="List view"
               >
-                <List size={13} /> List
+                <List size={18} /> List
               </button>
               <button
                 onClick={() => setPipelineView('graph')}
                 className={cn(
-                  'flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors',
+                  'flex items-center gap-1.5 px-3 min-h-11 rounded-md text-sm font-bold transition-colors',
                   pipelineView === 'graph'
-                    ? 'bg-[var(--accent)] text-[var(--paper)]'
-                    : 'text-[var(--ink-muted)] hover:bg-[var(--paper-dark)]'
+                    ? 'bg-[var(--accent)] text-white'
+                    : 'text-[var(--ink-muted)] hover:bg-[var(--paper-sunken)]'
                 )}
-                title="Graph view"
               >
-                <Workflow size={13} /> Graph
+                <Workflow size={18} /> Graph
               </button>
             </div>
           }
         >
           {lotIsTerminal && (
-            <div className="mb-3 text-xs text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
-              This lot has completed all production steps.
+            <div className="mb-3 text-sm font-semibold text-[var(--success)] bg-[var(--success-tint)] border border-[var(--success)] rounded-lg px-3 py-2.5">
+              This lot is done with all steps.
             </div>
           )}
 
           {pipelineView === 'graph' ? (
-            <div className="h-[520px] w-full rounded-md border border-[var(--border-light)] overflow-hidden">
+            <div className="h-[520px] w-full rounded-lg border border-[var(--border)] overflow-hidden">
               {graphLoading && (
-                <div className="h-full flex items-center justify-center text-sm text-[var(--ink-muted)]">Loading graph…</div>
+                <div className="h-full flex items-center justify-center text-base text-[var(--ink-muted)]">Loading graph…</div>
               )}
               {!graphLoading && graphError && (
-                <div className="h-full flex items-center justify-center text-sm text-red-600">Failed to load workflow graph.</div>
+                <div className="h-full flex items-center justify-center text-base font-semibold text-[var(--danger)]">Could not load the step map.</div>
               )}
               {!graphLoading && !graphError && graph && <LotWorkflowCanvas graph={graph} />}
             </div>
           ) : (
           <div className="space-y-2">
             {graphLoading && (
-              <p className="text-sm text-[var(--ink-muted)] italic">Loading pipeline…</p>
+              <p className="text-base text-[var(--ink-muted)] italic">Loading pipeline…</p>
             )}
             {!graphLoading && graphError && (
-              <p className="text-sm text-red-600">Failed to load workflow graph.</p>
+              <p className="text-base font-semibold text-[var(--danger)]">Could not load the step map.</p>
             )}
             {!graphLoading && !graphError && sortedNodes.length === 0 && (
-              <p className="text-sm text-[var(--ink-muted)] italic">No workflow steps recorded yet.</p>
+              <p className="text-base text-[var(--ink-muted)] italic">No steps recorded yet.</p>
             )}
             {!graphLoading && !graphError && sortedNodes.map((node, idx) => {
               const nodeType: WorkflowNodeType = node.node_type;
@@ -305,17 +303,17 @@ export default function LotDetailPage() {
                 return (
                   <div
                     key={nodeKey}
-                    className="flex items-center gap-3 rounded-md px-3 py-3 border border-[var(--border-light)] bg-[var(--paper-dark)] opacity-60"
+                    className="flex items-center gap-3 rounded-lg px-3 py-3 min-h-11 border border-[var(--border)] bg-[var(--paper-sunken)] opacity-60"
                   >
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 bg-[var(--border)] text-[var(--ink-muted)]">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 bg-[var(--border)] text-[var(--ink-muted)]">
                       {idx + 1}
                     </div>
                     <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
-                      <Icon size={13} className="flex-shrink-0 text-[var(--ink-muted)]" />
-                      <span className="text-sm font-medium text-[var(--ink-muted)]">{node.name}</span>
-                      <span className="text-[10px] text-[var(--ink-muted)] uppercase tracking-wide">{NODE_TYPE_LABELS[nodeType]}</span>
+                      <Icon size={18} className="flex-shrink-0 text-[var(--ink-muted)]" />
+                      <span className="text-base font-semibold text-[var(--ink-muted)]">{node.name}</span>
+                      <span className="text-xs text-[var(--ink-muted)] uppercase tracking-wide">{NODE_TYPE_LABELS[nodeType]}</span>
                     </div>
-                    <Badge variant="muted">Not started</Badge>
+                    <Badge variant="muted">{STEP_STATUS_LABELS.not_started}</Badge>
                   </div>
                 );
               }
@@ -338,13 +336,13 @@ export default function LotDetailPage() {
                 <div
                   key={nodeKey}
                   className={cn(
-                    'flex items-center gap-3 rounded-md px-3 py-3 border transition-colors',
-                    status === 'completed' && 'bg-green-50 border-green-200',
-                    status === 'in_progress' && 'bg-blue-50 border-blue-200',
+                    'flex items-center gap-3 rounded-lg px-3 py-3 min-h-11 border transition-colors',
+                    status === 'completed' && 'bg-[var(--success-tint)] border-[var(--success)]',
+                    status === 'in_progress' && 'bg-[var(--info-tint)] border-[var(--info)]',
                     // Amber is reserved app-wide for "needs action" -- skipped is a benign
                     // bypass, so it gets a neutral treatment, distinct from pending only by shade.
-                    status === 'skipped' && 'bg-[var(--paper-darker)] border-[var(--border)]',
-                    status === 'pending' && 'bg-[var(--paper-dark)] border-[var(--border-light)]',
+                    status === 'skipped' && 'bg-[var(--border)] border-[var(--border)]',
+                    status === 'pending' && 'bg-[var(--paper-sunken)] border-[var(--border)]',
                     // Louder highlight for the one row that's actually actionable right now:
                     // a thicker, node-type-accented left border on top of the ordinary status
                     // coloring (see the "Current Step" pill below for the other half of this).
@@ -353,25 +351,25 @@ export default function LotDetailPage() {
                   style={isCurrent ? { borderLeftColor: accentColor } : undefined}
                 >
                   <div className={cn(
-                    'w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0',
-                    status === 'completed' && 'bg-green-600 text-white',
-                    status === 'in_progress' && 'bg-blue-600 text-white',
+                    'w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0',
+                    status === 'completed' && 'bg-[var(--success)] text-white',
+                    status === 'in_progress' && 'bg-[var(--info)] text-white',
                     status === 'skipped' && 'bg-[var(--ink-muted)] text-white',
-                    status === 'pending' && 'bg-[var(--border)] text-[var(--ink-muted)]',
+                    status === 'pending' && 'bg-[var(--border-strong)] text-[var(--ink-muted)]',
                   )}>
                     {idx + 1}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <Icon size={13} style={{ color: accentColor }} className="flex-shrink-0" />
-                      <span className="text-sm font-medium">{node.name}</span>
-                      <span className="text-[10px] text-[var(--ink-muted)] uppercase tracking-wide">{NODE_TYPE_LABELS[nodeType]}</span>
+                      <Icon size={18} style={{ color: accentColor }} className="flex-shrink-0" />
+                      <span className="text-base font-semibold">{node.name}</span>
+                      <span className="text-xs text-[var(--ink-muted)] uppercase tracking-wide">{NODE_TYPE_LABELS[nodeType]}</span>
                       {isOptional && (
-                        <span className="text-[10px] text-[var(--ink-muted)] uppercase tracking-wide">optional</span>
+                        <span className="text-xs text-[var(--ink-muted)] uppercase tracking-wide">can skip</span>
                       )}
                       {isCurrent && (
                         <span
-                          className="inline-flex items-center text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded animate-pulse"
+                          className="inline-flex items-center text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full animate-pulse"
                           style={{ backgroundColor: withAlpha(accentColor, 18), color: accentColor }}
                         >
                           Current Step
@@ -382,19 +380,19 @@ export default function LotDetailPage() {
                     {/* production_step meta: machine/qty/timing + variance + scrap entries */}
                     {nodeType === 'production_step' && (
                       <>
-                        <div className="flex gap-3 text-xs text-[var(--ink-muted)] mt-0.5 flex-wrap">
+                        <div className="flex gap-3 text-sm text-[var(--ink-muted)] mt-0.5 flex-wrap">
                           {instance?.machine_name && <span>Machine: {instance.machine_name}</span>}
                           {instance?.actual_input_qty != null && <span>In: {formatQty(instance.actual_input_qty, instance.input_unit)}</span>}
                           {instance?.actual_output_qty != null && <span>Out: {formatQty(instance.actual_output_qty, instance.output_unit)}</span>}
                           {instance?.started_at && <span>{formatDateTime(instance.started_at)}</span>}
                         </div>
                         {variance && (
-                          <div className="flex gap-2 mt-1 flex-wrap text-[10px]">
-                            <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+                          <div className="flex gap-2 mt-1 flex-wrap text-xs">
+                            <span className="font-semibold bg-[var(--info-tint)] text-[var(--info)] px-2 py-0.5 rounded-full">
                               Yield: {variance.yield_pct.toFixed(1)}%
                             </span>
                             {variance.total_scrap > 0 && (
-                              <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded">
+                              <span className="font-semibold bg-[var(--danger-tint)] text-[var(--danger)] px-2 py-0.5 rounded-full">
                                 Scrap: {formatQty(variance.total_scrap, variance.scrap_unit)}
                               </span>
                             )}
@@ -403,8 +401,8 @@ export default function LotDetailPage() {
                         {scrapEntries && scrapEntries.length > 0 && (
                           <div className="flex gap-2 mt-1 flex-wrap">
                             {scrapEntries.map((se) => (
-                              <span key={se.id} className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded">
-                                {se.scrap_type}: {formatQty(se.quantity, se.unit)}
+                              <span key={se.id} className="text-xs font-semibold bg-[var(--danger-tint)] text-[var(--danger)] px-2 py-0.5 rounded-full">
+                                {SCRAP_TYPE_LABELS[se.scrap_type] || se.scrap_type.replace(/_/g, ' ')}: {formatQty(se.quantity, se.unit)}
                               </span>
                             ))}
                           </div>
@@ -416,17 +414,17 @@ export default function LotDetailPage() {
                         only) the free-form measurements captured at submission time */}
                     {(nodeType === 'approval' || nodeType === 'quality_check') && (
                       <>
-                        <div className="flex gap-3 text-xs text-[var(--ink-muted)] mt-0.5 flex-wrap">
+                        <div className="flex gap-3 text-sm text-[var(--ink-muted)] mt-0.5 flex-wrap">
                           {instance?.outcome && <span>Outcome: {instance.outcome}</span>}
                           {instance?.decided_at && <span>{formatDateTime(instance.decided_at)}</span>}
                         </div>
                         {instance?.decision_reason && (
-                          <p className="text-xs text-[var(--ink-muted)] mt-0.5 italic">&ldquo;{instance.decision_reason}&rdquo;</p>
+                          <p className="text-sm text-[var(--ink-muted)] mt-0.5 italic">&ldquo;{instance.decision_reason}&rdquo;</p>
                         )}
                         {nodeType === 'quality_check' && instance?.data && Object.keys(instance.data).length > 0 && (
                           <div className="flex gap-2 mt-1 flex-wrap">
                             {Object.entries(instance.data).map(([k, v]) => (
-                              <span key={k} className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+                              <span key={k} className="text-xs font-semibold bg-[var(--info-tint)] text-[var(--info)] px-2 py-0.5 rounded-full">
                                 {k}: {String(v)}
                               </span>
                             ))}
@@ -437,8 +435,8 @@ export default function LotDetailPage() {
 
                     {/* conditional_branch: inert row, no actions ever */}
                     {nodeType === 'conditional_branch' && (
-                      <p className="text-xs text-[var(--ink-muted)] mt-0.5">
-                        {instance?.outcome ? `→ ${instance.outcome}` : 'Pending evaluation'}
+                      <p className="text-sm text-[var(--ink-muted)] mt-0.5">
+                        {instance?.outcome ? `→ ${instance.outcome}` : 'Not decided yet'}
                       </p>
                     )}
                   </div>
@@ -458,7 +456,7 @@ export default function LotDetailPage() {
                             variant="outline"
                             onClick={() => setActionModal({ kind: 'production', type: 'scrap', nodeKey, scrapTypes, defaultScrapUnit })}
                           >
-                            <AlertTriangle size={13} /> Record Scrap
+                            <AlertTriangle size={18} /> Record Scrap
                           </Button>
                         )}
                         {status === 'in_progress' && canConsumable && isCurrent && (
@@ -467,7 +465,7 @@ export default function LotDetailPage() {
                             variant="outline"
                             onClick={() => setActionModal({ kind: 'production', type: 'consumable', nodeKey, scrapTypes })}
                           >
-                            <Package size={13} /> Log Usage
+                            <Package size={18} /> Log Usage
                           </Button>
                         )}
                         {status === 'pending' && isOptional && canSkip && isCurrent && (
@@ -476,7 +474,7 @@ export default function LotDetailPage() {
                             variant="outline"
                             onClick={() => setActionModal({ kind: 'production', type: 'skip', nodeKey, scrapTypes })}
                           >
-                            <SkipForward size={13} /> Skip
+                            <SkipForward size={18} /> Skip
                           </Button>
                         )}
                         {status === 'completed' && canOverride && (
@@ -485,7 +483,7 @@ export default function LotDetailPage() {
                             variant="outline"
                             onClick={() => setActionModal({ kind: 'production', type: 'override', nodeKey, scrapTypes })}
                           >
-                            <Pencil size={13} /> Override
+                            <Pencil size={18} /> Fix a Mistake
                           </Button>
                         )}
                         {status !== 'pending' && canAnalytics && (
@@ -494,7 +492,7 @@ export default function LotDetailPage() {
                             variant="ghost"
                             onClick={() => setActionModal({ kind: 'production', type: 'analytics', nodeKey, scrapTypes })}
                           >
-                            <BarChart3 size={13} /> Details
+                            <BarChart3 size={18} /> Details
                           </Button>
                         )}
                       </>

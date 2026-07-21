@@ -74,18 +74,18 @@ export default function WebhooksPage() {
   };
 
   const columns = [
-    { key: 'name', header: 'Name', render: (w: Webhook) => <span className="font-medium">{w.name}</span> },
-    { key: 'url', header: 'URL', render: (w: Webhook) => <span className="font-mono text-xs break-all">{w.url}</span> },
+    { key: 'name', header: 'Name', primary: true, render: (w: Webhook) => <span className="font-bold">{w.name}</span> },
+    { key: 'url', header: 'URL', render: (w: Webhook) => <span className="font-mono text-sm break-all">{w.url}</span> },
     {
       key: 'events',
       header: 'Events',
       render: (w: Webhook) => (
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1.5">
           {(w.events || []).slice(0, 3).map((e) => (
-            <Badge key={e} variant="muted" className="text-[10px]">{e}</Badge>
+            <Badge key={e} variant="muted" className="text-xs">{e}</Badge>
           ))}
-          {(w.events || []).length > 3 && <span className="text-xs text-[var(--ink-muted)]">+{w.events.length - 3}</span>}
-          {(w.events || []).length === 0 && <span className="text-xs text-[var(--ink-muted)] italic">No events</span>}
+          {(w.events || []).length > 3 && <span className="text-sm text-[var(--ink-muted)]">+{w.events.length - 3}</span>}
+          {(w.events || []).length === 0 && <span className="text-sm text-[var(--ink-muted)] italic">No events</span>}
         </div>
       ),
     },
@@ -96,22 +96,39 @@ export default function WebhooksPage() {
         <Badge variant={w.is_active ? 'success' : 'muted'}>{w.is_active ? 'Active' : 'Inactive'}</Badge>
       ),
     },
-    { key: 'created_at', header: 'Created', render: (w: Webhook) => formatDate(w.created_at) },
+    { key: 'created_at', header: 'Created', hideInCard: true, render: (w: Webhook) => formatDate(w.created_at) },
     ...(canManage
       ? [
           {
             key: 'actions',
             header: '',
             render: (w: Webhook) => (
-              <div className="flex items-center gap-1 justify-end">
-                <button onClick={(e) => { e.stopPropagation(); handleTest(w); }} disabled={busyId === w.id || !w.is_active} className="p-1 text-[var(--ink-muted)] hover:text-[var(--accent)] disabled:opacity-30" title={w.is_active ? 'Send test event' : 'Webhook is inactive'} aria-label={w.is_active ? 'Send test event' : 'Webhook is inactive'}>
-                  <Play size={12} />
+              <div className="flex items-center gap-2 justify-end">
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleTest(w); }}
+                  disabled={busyId === w.id || !w.is_active}
+                  className="flex items-center gap-1.5 px-3 min-h-11 rounded-lg text-sm font-bold text-[var(--ink-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent-tint)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  title={w.is_active ? 'Send test event' : 'Webhook is inactive'}
+                  aria-label={w.is_active ? 'Send test event' : 'Webhook is inactive'}
+                >
+                  <Play size={18} /> Test
                 </button>
-                <button onClick={(e) => { e.stopPropagation(); setShowEdit(w); }} className="p-1 text-[var(--ink-muted)] hover:text-blue-600" title="Edit" aria-label="Edit webhook">
-                  <Edit size={12} />
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowEdit(w); }}
+                  className="flex items-center gap-1.5 px-3 min-h-11 rounded-lg text-sm font-bold text-[var(--ink-muted)] hover:text-[var(--info)] hover:bg-[var(--info-tint)] transition-colors"
+                  title="Edit"
+                  aria-label="Edit webhook"
+                >
+                  <Edit size={18} /> Edit
                 </button>
-                <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(w); }} disabled={busyId === w.id} className="p-1 text-[var(--ink-muted)] hover:text-red-600 disabled:opacity-30" title="Delete" aria-label="Delete webhook">
-                  <Trash2 size={12} />
+                <button
+                  onClick={(e) => { e.stopPropagation(); setConfirmDelete(w); }}
+                  disabled={busyId === w.id}
+                  className="flex items-center gap-1.5 px-3 min-h-11 rounded-lg text-sm font-bold text-[var(--ink-muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-tint)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  title="Delete"
+                  aria-label="Delete webhook"
+                >
+                  <Trash2 size={18} /> Delete
                 </button>
               </div>
             ),
@@ -124,11 +141,11 @@ export default function WebhooksPage() {
     <AppShell>
       <PageHeader
         title="Webhooks"
-        subtitle="Outgoing webhook integrations"
+        subtitle="Send events to other systems when things happen"
         action={
           canManage && (
             <Button onClick={() => setShowCreate(true)}>
-              <Plus size={14} /> New Webhook
+              <Plus size={18} /> New Webhook
             </Button>
           )
         }
@@ -174,7 +191,7 @@ export default function WebhooksPage() {
             </>
           }
         >
-          <p className="text-sm text-[var(--ink-muted)]">
+          <p className="text-base text-[var(--ink-muted)]">
             Delete <strong>{confirmDelete.name}</strong>? This cannot be undone and will stop all future event deliveries to this URL.
           </p>
         </Modal>
@@ -255,28 +272,28 @@ function WebhookModal({
         <Input label="URL" value={url} onChange={(e) => setUrl(e.target.value)} error={errors.url} placeholder="https://example.com/webhook" />
         <Input label="Secret (optional)" type="password" value={secret} onChange={(e) => setSecret(e.target.value)} error={errors.secret} placeholder={webhook ? 'Leave blank to keep existing secret' : 'For HMAC signature'} />
         <div>
-          <label className="text-xs font-medium text-[var(--ink-light)] uppercase tracking-wide block mb-2">Events</label>
+          <label className="text-sm font-bold text-[var(--ink-light)] uppercase tracking-wide block mb-2">Events</label>
           <div className="flex flex-wrap gap-2">
             {EVENT_OPTIONS.map((ev) => (
-              <label key={ev} className="flex items-center gap-1.5 text-sm cursor-pointer">
+              <label key={ev} className="flex items-center gap-2 text-sm min-h-11 px-1 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={events.includes(ev)}
                   onChange={() => toggleEvent(ev)}
-                  className="rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
+                  className="w-5 h-5 rounded border-[var(--border-strong)] text-[var(--accent)] focus:ring-[var(--accent)]"
                 />
                 {ev}
               </label>
             ))}
           </div>
-          {errors.events && <p className="text-xs text-red-600 mt-1.5">{errors.events}</p>}
+          {errors.events && <p className="text-sm font-semibold text-[var(--danger)] mt-1.5">{errors.events}</p>}
         </div>
-        <label className="flex items-center gap-2 text-sm cursor-pointer">
+        <label className="flex items-center gap-2 text-base min-h-11 cursor-pointer">
           <input
             type="checkbox"
             checked={isActive}
             onChange={(e) => setIsActive(e.target.checked)}
-            className="rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
+            className="w-5 h-5 rounded border-[var(--border-strong)] text-[var(--accent)] focus:ring-[var(--accent)]"
           />
           Active
         </label>

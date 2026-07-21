@@ -145,23 +145,23 @@ export default function ReportsPage() {
         subtitle="What matters for the business, at a glance"
         action={
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-[var(--ink-muted)]">Period:</span>
+            <span className="text-sm font-semibold text-[var(--ink-muted)]">Period:</span>
             {TREND_PRESETS.map((p) => (
               <button
                 key={p.days}
                 onClick={() => applyPreset(p.days)}
-                className="text-xs px-2.5 py-1 rounded border border-[var(--border-light)] text-[var(--ink-light)] hover:bg-[var(--paper-dark)] transition-colors"
+                className="text-sm font-semibold px-3 min-h-11 rounded-lg border-2 border-[var(--border-strong)] text-[var(--ink-light)] hover:bg-[var(--paper-sunken)] transition-colors"
               >
                 {p.label}
               </button>
             ))}
-            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-36 text-xs py-1.5" />
-            <span className="text-xs text-[var(--ink-muted)]">to</span>
-            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-36 text-xs py-1.5" />
+            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-40" />
+            <span className="text-sm text-[var(--ink-muted)]">to</span>
+            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-40" />
           </div>
         }
       />
-      {dateError && <p className="text-xs text-red-600 -mt-4 mb-4">{dateError}</p>}
+      {dateError && <p className="text-sm font-semibold text-[var(--danger)] -mt-4 mb-4">{dateError}</p>}
 
       {error && (
         <Card className="mb-4"><ErrorState error={error} onRetry={load} /></Card>
@@ -170,23 +170,23 @@ export default function ReportsPage() {
       {/* KPI row -- "as of now" tiles don't move with the date range above; "selected period"
           ones do. */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-        <StatCard label="Open Batches" sub="as of now" value={loading ? '—' : (production.active_batches ?? '—')} icon={<Factory size={18} />} />
-        <StatCard label="Open Lots" sub="as of now" value={loading ? '—' : (production.active_lots ?? '—')} icon={<Layers size={18} />} />
+        <StatCard label="Open Batches" sub="as of now" value={loading ? '—' : (production.active_batches ?? '—')} icon={<Factory size={22} />} />
+        <StatCard label="Open Lots" sub="as of now" value={loading ? '—' : (production.active_lots ?? '—')} icon={<Layers size={22} />} />
         <StatCard
           label="Avg Yield"
           sub="selected period"
           value={loading ? '—' : avgYieldPct != null ? `${avgYieldPct.toFixed(1)}%` : '—'}
-          icon={<TrendingUp size={18} />}
+          icon={<TrendingUp size={22} />}
         />
-        <StatCard label="Scrap" sub="selected period" value={loading ? '—' : formatQty(scrapKg, 'kg')} icon={<AlertTriangle size={18} />} />
+        <StatCard label="Scrap" sub="selected period" value={loading ? '—' : formatQty(scrapKg, 'kg')} icon={<AlertTriangle size={22} />} />
         <StatCard
           label="Needs Reorder"
           sub="as of now"
           value={loading ? '—' : needsReorder}
-          icon={<PackageX size={18} />}
+          icon={<PackageX size={22} />}
           accent={needsReorder > 0}
         />
-        <StatCard label="Completed Today" sub="as of now" value={loading ? '—' : (production.completed_today ?? '—')} icon={<TrendingUp size={18} />} />
+        <StatCard label="Completed Today" sub="as of now" value={loading ? '—' : (production.completed_today ?? '—')} icon={<TrendingUp size={22} />} />
       </div>
 
       {/* Yield by step/SKU */}
@@ -194,14 +194,14 @@ export default function ReportsPage() {
         title="Yield"
         subtitle="Actual output ÷ actual input across completed production steps"
         action={
-          <div className="flex gap-1">
+          <div className="flex gap-2">
             <button
               onClick={() => setYieldGroupBy('step')}
               className={cn(
-                'text-xs px-2.5 py-1 rounded border transition-colors',
+                'text-sm font-bold px-3.5 min-h-11 rounded-lg border-2 transition-colors',
                 yieldGroupBy === 'step'
                   ? 'bg-[var(--accent)] text-white border-[var(--accent)]'
-                  : 'border-[var(--border-light)] text-[var(--ink-light)] hover:bg-[var(--paper-dark)]'
+                  : 'border-[var(--border-strong)] text-[var(--ink-light)] hover:bg-[var(--paper-sunken)]'
               )}
             >
               By Step
@@ -209,10 +209,10 @@ export default function ReportsPage() {
             <button
               onClick={() => setYieldGroupBy('sku')}
               className={cn(
-                'text-xs px-2.5 py-1 rounded border transition-colors',
+                'text-sm font-bold px-3.5 min-h-11 rounded-lg border-2 transition-colors',
                 yieldGroupBy === 'sku'
                   ? 'bg-[var(--accent)] text-white border-[var(--accent)]'
-                  : 'border-[var(--border-light)] text-[var(--ink-light)] hover:bg-[var(--paper-dark)]'
+                  : 'border-[var(--border-strong)] text-[var(--ink-light)] hover:bg-[var(--paper-sunken)]'
               )}
             >
               By SKU
@@ -292,8 +292,8 @@ export default function ReportsPage() {
       </Card>
 
       <div className="text-center pb-2">
-        <Link href="/reports/detailed" className="text-sm text-[var(--accent)] hover:underline inline-flex items-center gap-1">
-          View detailed reports <ArrowRight size={13} />
+        <Link href="/reports/detailed" className="text-base font-semibold text-[var(--accent)] hover:underline inline-flex items-center gap-1.5">
+          View detailed reports <ArrowRight size={18} />
         </Link>
       </div>
     </AppShell>

@@ -59,10 +59,10 @@ export default function DashboardPage() {
       />
 
       {partialFailure && !loading && (
-        <div className="flex items-center justify-between gap-3 mb-4 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-          <span>Some dashboard data couldn&apos;t be loaded. Figures below may be incomplete.</span>
+        <div className="flex items-center justify-between gap-3 mb-4 text-sm font-semibold text-[var(--warning)] bg-[var(--warning-tint)] border-2 border-[var(--warning)] rounded-xl px-4 py-3">
+          <span>Some numbers below did not load. They may be wrong or missing.</span>
           <Button variant="ghost" size="sm" onClick={() => { setLoading(true); load().finally(() => setLoading(false)); }}>
-            <RefreshCw size={12} /> Retry
+            <RefreshCw size={16} /> Retry
           </Button>
         </div>
       )}
@@ -77,25 +77,25 @@ export default function DashboardPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <StatCard
-          label="Active Batches"
+          label="Batches Running"
           value={loading ? '—' : (summary.active_batches ?? recentBatches.filter(b => b.status !== 'completed').length)}
-          icon={<Factory size={18} />}
+          icon={<Factory size={22} />}
           accent
         />
         <StatCard
-          label="Active Lots"
+          label="Lots Running"
           value={loading ? '—' : (summary.active_lots ?? activeLots.length)}
-          icon={<Layers size={18} />}
+          icon={<Layers size={22} />}
         />
         <StatCard
-          label="Completed Today"
+          label="Done Today"
           value={loading ? '—' : (summary.completed_today ?? '—')}
-          icon={<TrendingUp size={18} />}
+          icon={<TrendingUp size={22} />}
         />
         <StatCard
           label="Total Scrap (kg)"
           value={loading ? '—' : (summary.total_scrap_kg != null ? formatQty(summary.total_scrap_kg) : '—')}
-          icon={<AlertTriangle size={18} />}
+          icon={<AlertTriangle size={22} />}
         />
       </div>
 
@@ -104,29 +104,29 @@ export default function DashboardPage() {
         <Card
           title="Recent Batches"
           action={
-            <Link href="/batches" className="text-xs text-[var(--accent)] hover:underline">
+            <Link href="/batches" className="text-sm font-bold text-[var(--accent)] hover:underline">
               View all →
             </Link>
           }
           noPadding
         >
           {loading ? (
-            <div className="p-5 text-center text-sm text-[var(--ink-muted)]">Loading…</div>
+            <div className="p-5 text-center text-base text-[var(--ink-muted)]">Loading…</div>
           ) : recentBatches.length === 0 ? (
-            <div className="p-5 text-center text-sm text-[var(--ink-muted)] italic">No batches yet.</div>
+            <div className="p-5 text-center text-base text-[var(--ink-muted)] italic">No batches yet.</div>
           ) : (
-            <div className="divide-y divide-[var(--border-light)]">
+            <div className="divide-y divide-[var(--border)]">
               {recentBatches.map((b) => (
                 <Link
                   key={b.id}
                   href={`/batches/${b.id}`}
-                  className="flex items-center justify-between px-4 py-3 hover:bg-[var(--paper-dark)] transition-colors group"
+                  className="flex items-center justify-between px-4 py-3.5 min-h-[64px] hover:bg-[var(--paper-sunken)] transition-colors group"
                 >
                   <div>
-                    <p className="text-sm font-medium text-[var(--ink)] group-hover:text-[var(--accent)] transition-colors font-mono">
+                    <p className="text-base font-bold text-[var(--ink)] group-hover:text-[var(--accent)] transition-colors font-mono">
                       {b.batch_number}
                     </p>
-                    <p className="text-xs text-[var(--ink-muted)]">
+                    <p className="text-sm text-[var(--ink-muted)]">
                       {formatQty(b.total_blend_qty, b.unit)} · {formatDate(b.created_at)}
                     </p>
                   </div>
@@ -143,36 +143,36 @@ export default function DashboardPage() {
         <Card
           title="Active Lots"
           action={
-            <Link href="/lots" className="text-xs text-[var(--accent)] hover:underline">
+            <Link href="/lots" className="text-sm font-bold text-[var(--accent)] hover:underline">
               View all →
             </Link>
           }
           noPadding
         >
           {loading ? (
-            <div className="p-5 text-center text-sm text-[var(--ink-muted)]">Loading…</div>
+            <div className="p-5 text-center text-base text-[var(--ink-muted)]">Loading…</div>
           ) : activeLots.length === 0 ? (
-            <div className="p-5 text-center text-sm text-[var(--ink-muted)] italic">No active lots.</div>
+            <div className="p-5 text-center text-base text-[var(--ink-muted)] italic">No active lots.</div>
           ) : (
-            <div className="divide-y divide-[var(--border-light)]">
+            <div className="divide-y divide-[var(--border)]">
               {activeLots.map((l) => (
                 <Link
                   key={l.id}
                   href={`/lots/${l.id}`}
-                  className="flex items-center justify-between px-4 py-3 hover:bg-[var(--paper-dark)] transition-colors group"
+                  className="flex items-center justify-between px-4 py-3.5 min-h-[64px] hover:bg-[var(--paper-sunken)] transition-colors group"
                 >
                   <div>
-                    <p className="text-sm font-medium text-[var(--ink)] group-hover:text-[var(--accent)] transition-colors font-mono">
+                    <p className="text-base font-bold text-[var(--ink)] group-hover:text-[var(--accent)] transition-colors font-mono">
                       {l.lot_number}
                     </p>
-                    <p className="text-xs text-[var(--ink-muted)]">
+                    <p className="text-sm text-[var(--ink-muted)]">
                       {l.sku_code} · {formatQty(l.quantity, l.unit)}
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <Badge variant={lotStatusBadge(l.status)}>{LOT_STATUS_LABELS[l.status] || l.status}</Badge>
                     {l.current_step && (
-                      <span className="text-xs text-[var(--ink-muted)]">
+                      <span className="text-sm text-[var(--ink-muted)]">
                         {STEP_LABELS[l.current_step]}
                       </span>
                     )}

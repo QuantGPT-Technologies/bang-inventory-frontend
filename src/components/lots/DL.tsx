@@ -6,8 +6,8 @@
 export function DL({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-2">
-      <dt className="text-xs uppercase tracking-wide text-[var(--ink-muted)] flex-shrink-0">{label}</dt>
-      <dd className="text-right text-sm">{children}</dd>
+      <dt className="text-sm font-bold uppercase tracking-wide text-[var(--ink-muted)] flex-shrink-0">{label}</dt>
+      <dd className="text-right text-base">{children}</dd>
     </div>
   );
 }
