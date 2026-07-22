@@ -20,10 +20,22 @@ import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import { createBatchSchema, validate, toNumber, type FieldErrors } from '@/lib/validation';
 import { useAsyncQuery } from '@/lib/useAsync';
+import { useUrlState } from '@/lib/useUrlState';
 import { Plus, X, Search } from 'lucide-react';
 
 const PER_PAGE = 20;
 const EMPTY: PaginatedResponse<Batch> = { items: [], total: 0, page: 1, per_page: PER_PAGE };
+
+/** sessionStorage key used by batches/[id]/page.tsx's "Repeat this batch" shortcut to hand off
+ * a prefill payload for the New Batch modal here -- kept as a shared constant so the two files
+ * don't duplicate the string literal. */
+export const REPEAT_BATCH_STORAGE_KEY = 'bang:repeat-batch-prefill';
+
+export interface RepeatBatchPrefill {
+  total_blend_qty: number;
+  unit: string;
+  materials: { raw_material_id: number; planned_qty: number }[];
+}
 
 export default function BatchesPage() {
   return (
@@ -42,10 +54,26 @@ function BatchesPageInner() {
   const { user } = useAuthStore();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || '');
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [search, setSearch] = useUrlState('q', '');
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
   const [showCreate, setShowCreate] = useState(false);
   const [rawMaterials, setRawMaterials] = useState<RawMaterial[]>([]);
+  const [repeatPrefill, setRepeatPrefill] = useState<RepeatBatchPrefill | null>(null);
+
+  // "Repeat this batch" hand-off from batches/[id]/page.tsx: if a prefill payload is waiting in
+  // sessionStorage, consume it once on mount and open the New Batch modal pre-populated with it.
+  useEffect(() => {
+    const raw = sessionStorage.getItem(REPEAT_BATCH_STORAGE_KEY);
+    if (!raw) return;
+    sessionStorage.removeItem(REPEAT_BATCH_STORAGE_KEY);
+    try {
+      const parsed = JSON.parse(raw) as RepeatBatchPrefill;
+      setRepeatPrefill(parsed);
+      setShowCreate(true);
+    } catch {
+      // Malformed payload -- ignore, just open a normal empty New Batch modal isn't warranted here.
+    }
+  }, []);
 
   // Debounced so typing a batch number doesn't fire a request per keystroke. The page reset
   // lives in this same callback (not the input's onChange) so it fires once, together with the
@@ -173,10 +201,11 @@ function BatchesPageInner() {
       {showCreate && (
         <CreateBatchModal
           rawMaterials={rawMaterials}
-          onClose={() => setShowCreate(false)}
+          prefill={repeatPrefill}
+          onClose={() => { setShowCreate(false); setRepeatPrefill(null); }}
           // Straight to the new batch's detail page -- "Start Blending" is almost always the
           // very next thing to do, so landing back on the list would just mean finding it again.
-          onCreated={(newBatchId) => { setShowCreate(false); router.push(`/batches/${newBatchId}`); }}
+          onCreated={(newBatchId) => { setShowCreate(false); setRepeatPrefill(null); router.push(`/batches/${newBatchId}`); }}
         />
       )}
     </AppShell>
@@ -187,17 +216,23 @@ interface MaterialRow { raw_material_id: number; planned_qty: string }
 
 function CreateBatchModal({
   rawMaterials,
+  prefill,
   onClose,
   onCreated,
 }: {
   rawMaterials: RawMaterial[];
+  prefill?: RepeatBatchPrefill | null;
   onClose: () => void;
   onCreated: (newBatchId: number) => void;
 }) {
-  const [totalQty, setTotalQty] = useState('');
-  const [unit, setUnit] = useState('kg');
+  const [totalQty, setTotalQty] = useState(() => (prefill ? String(prefill.total_blend_qty) : ''));
+  const [unit, setUnit] = useState(() => prefill?.unit || 'kg');
   const [notes, setNotes] = useState('');
-  const [materials, setMaterials] = useState<MaterialRow[]>([{ raw_material_id: 0, planned_qty: '' }]);
+  const [materials, setMaterials] = useState<MaterialRow[]>(() =>
+    prefill && prefill.materials.length > 0
+      ? prefill.materials.map((m) => ({ raw_material_id: m.raw_material_id, planned_qty: String(m.planned_qty) }))
+      : [{ raw_material_id: 0, planned_qty: '' }]
+  );
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
 
@@ -212,6 +247,11 @@ function CreateBatchModal({
     () => materials.reduce((s, m) => s + (toNumber(m.planned_qty) || 0), 0),
     [materials]
   );
+
+  // Soft sanity check, not a hard block: flag when the summed material rows meaningfully diverge
+  // (>1%) from the total the user typed, in case a row was mistyped or forgotten.
+  const totalQtyNum = toNumber(totalQty) || 0;
+  const totalsMismatch = totalQtyNum > 0 && Math.abs(plannedTotal - totalQtyNum) / totalQtyNum > 0.01;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -305,7 +345,7 @@ function CreateBatchModal({
               <div key={i} className="flex gap-2 items-end">
                 <div className="flex-1">
                   <Select
-                    options={rawMaterials.map((r) => ({ value: r.id, label: `${r.name} (${r.unit})` }))}
+                    options={rawMaterials.map((r) => ({ value: r.id, label: `${r.name} (${r.unit}) — ${r.current_stock} in stock` }))}
                     value={m.raw_material_id || ''}
                     onChange={(e) => updateMaterial(i, 'raw_material_id', Number(e.target.value))}
                     placeholder="Select material…"
@@ -337,6 +377,11 @@ function CreateBatchModal({
           <p className="text-sm text-[var(--ink-muted)] mt-1.5">
             Materials total: <span className="font-mono">{plannedTotal.toFixed(3)}</span> {unit}
           </p>
+          {totalsMismatch && (
+            <p className="text-sm font-semibold text-[var(--warning)] bg-[var(--warning-tint)] border border-[var(--warning)] rounded-lg px-3 py-2 mt-1.5">
+              Materials total ({plannedTotal.toFixed(3)} {unit}) doesn&apos;t match the total amount to mix ({totalQtyNum.toFixed(3)} {unit}). Double-check before creating.
+            </p>
+          )}
         </div>
 
         <Textarea

@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/Card';
@@ -22,11 +22,13 @@ import {
 import { useAsyncQuery } from '@/lib/useAsync';
 import { pushRecent } from '@/lib/useLocalMemory';
 import { NODE_TYPE_ICONS, NODE_TYPE_COLORS } from '@/components/workflow/workflowNodeMeta';
-import { Play, CheckCircle, Split, Plus, X, ArrowRight } from 'lucide-react';
+import { REPEAT_BATCH_STORAGE_KEY, type RepeatBatchPrefill } from '@/app/batches/page';
+import { Play, CheckCircle, Split, Plus, X, ArrowRight, Repeat, Info } from 'lucide-react';
 import Link from 'next/link';
 
 export default function BatchDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const { user } = useAuthStore();
   const [showBlend, setShowBlend] = useState(false);
   const [showCompleteBlend, setShowCompleteBlend] = useState(false);
@@ -118,7 +120,24 @@ export default function BatchDetailPage() {
 
   const canBlend = canAccess(user, 'batches', 'blend');
   const canSplit = canAccess(user, 'batches', 'split');
+  const canCreate = canAccess(user, 'batches', 'create');
   const totalScrap = (batch.scrap || []).reduce((s, e) => s + e.quantity, 0);
+
+  // "Repeat this batch": hand off this batch's materials/quantities to the New Batch modal on
+  // the list page via sessionStorage (see REPEAT_BATCH_STORAGE_KEY), then navigate there --
+  // the user still reviews/adjusts everything before actually submitting.
+  const handleRepeatBatch = () => {
+    const prefill: RepeatBatchPrefill = {
+      total_blend_qty: batch.total_blend_qty,
+      unit: batch.unit,
+      materials: (batch.materials || []).map((m) => ({
+        raw_material_id: m.raw_material_id,
+        planned_qty: m.planned_qty,
+      })),
+    };
+    sessionStorage.setItem(REPEAT_BATCH_STORAGE_KEY, JSON.stringify(prefill));
+    router.push('/batches');
+  };
 
   return (
     <AppShell>
@@ -140,6 +159,11 @@ export default function BatchDetailPage() {
             {batch.status === 'blended' && canSplit && (
               <Button onClick={() => setShowSplit(true)}>
                 <Split size={18} /> Split into Lots
+              </Button>
+            )}
+            {(batch.status === 'blended' || batch.status === 'completed') && canCreate && (
+              <Button variant="outline" onClick={handleRepeatBatch}>
+                <Repeat size={18} /> Repeat This Batch
               </Button>
             )}
           </div>
@@ -459,19 +483,33 @@ function CompleteBlendModal({ batch, onClose, onDone }: { batch: Batch; onClose:
             </p>
           ) : (
             <div className="space-y-2">
-              {(batch.materials || []).map((m) => (
-                <div key={m.raw_material_id} className="flex items-center gap-3">
-                  <span className="flex-1 text-base">{m.material_name || `Material #${m.raw_material_id}`}</span>
-                  <span className="text-sm text-[var(--ink-muted)] w-24 text-right">Plan: {formatQty(m.planned_qty)}</span>
-                  <Input
-                    type="number" step="0.001" min="0"
-                    value={actualQtys[m.raw_material_id] ?? String(m.planned_qty)}
-                    onChange={(e) => setActualQtys((q) => ({ ...q, [m.raw_material_id]: e.target.value }))}
-                    className="w-32"
-                    placeholder="Real amount"
-                  />
-                </div>
-              ))}
+              {(batch.materials || []).map((m) => {
+                const currentValue = actualQtys[m.raw_material_id] ?? String(m.planned_qty);
+                // Row still holds the planned-quantity prefill untouched -- not blocked, just
+                // surfaced so it's visible this row wasn't deliberately confirmed.
+                const isUnedited = toNumber(currentValue) === m.planned_qty;
+                return (
+                  <div key={m.raw_material_id} className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <span className="text-base">{m.material_name || `Material #${m.raw_material_id}`}</span>
+                      {isUnedited && (
+                        <span className="flex items-center gap-1 text-sm text-[var(--ink-muted)] mt-0.5">
+                          <Info size={13} className="flex-shrink-0" />
+                          using planned amount
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-sm text-[var(--ink-muted)] w-24 text-right">Plan: {formatQty(m.planned_qty)}</span>
+                    <Input
+                      type="number" step="0.001" min="0"
+                      value={currentValue}
+                      onChange={(e) => setActualQtys((q) => ({ ...q, [m.raw_material_id]: e.target.value }))}
+                      className="w-32"
+                      placeholder="Real amount"
+                    />
+                  </div>
+                );
+              })}
             </div>
           )}
           {errors.actual_materials && <p className="text-sm font-semibold text-[var(--danger)] mt-1.5">{errors.actual_materials}</p>}
@@ -495,8 +533,13 @@ function CompleteBlendModal({ batch, onClose, onDone }: { batch: Batch; onClose:
                   <div className="w-28">
                     <Input type="number" step="0.001" min="0" value={row.quantity} onChange={(e) => updateScrapRow(i, 'quantity', e.target.value)} placeholder="Qty" />
                   </div>
-                  <div className="w-20">
-                    <Input value={row.unit} onChange={(e) => updateScrapRow(i, 'unit', e.target.value)} placeholder={batch.unit} />
+                  <div className="w-24">
+                    <Select
+                      options={[{ value: 'kg', label: 'kg' }, { value: 'pcs', label: 'pcs' }, { value: 'g', label: 'g' }]}
+                      value={row.unit}
+                      onChange={(e) => updateScrapRow(i, 'unit', e.target.value)}
+                      placeholder=""
+                    />
                   </div>
                   <div className="flex-1">
                     <Input value={row.notes} onChange={(e) => updateScrapRow(i, 'notes', e.target.value)} placeholder="Notes (optional)" />
@@ -533,6 +576,13 @@ function SplitLotsModal({ batch, skus, onClose, onDone }: { batch: Batch; skus: 
   const removeLot = (i: number) => setLots((l) => (l.length > 1 ? l.filter((_, idx) => idx !== i) : l));
   const updateLot = (i: number, field: keyof LotRow, value: string | number) =>
     setLots((l) => l.map((item, idx) => (idx === i ? { ...item, [field]: value } : item)));
+
+  // Divides the remaining splittable quantity evenly across the lot rows already added, as a
+  // starting point -- every row stays fully editable afterward.
+  const splitEvenly = () => {
+    const share = remainingQty / lots.length;
+    setLots((l) => l.map((item) => ({ ...item, quantity: share.toFixed(3) })));
+  };
 
   const totalAssigned = useMemo(
     () => lots.reduce((s, l) => s + (toNumber(l.quantity) || 0), 0),
@@ -603,7 +653,12 @@ function SplitLotsModal({ batch, skus, onClose, onDone }: { batch: Batch; skus: 
           </div>
         ))}
         {errors.lots && <p className="text-sm font-semibold text-[var(--danger)]">{errors.lots}</p>}
-        <Button type="button" variant="outline" size="sm" onClick={addLot} disabled={noSkusAvailable}><Plus size={16} /> Add Lot</Button>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={addLot} disabled={noSkusAvailable}><Plus size={16} /> Add Lot</Button>
+          {lots.length >= 2 && (
+            <Button type="button" variant="ghost" size="sm" onClick={splitEvenly}><Split size={16} /> Split Evenly</Button>
+          )}
+        </div>
       </form>
     </Modal>
   );
