@@ -7,6 +7,7 @@ import { Table, Pagination } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Modal } from '@/components/ui/Modal';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
@@ -28,6 +29,7 @@ export default function UsersPage() {
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
   const [togglingId, setTogglingId] = useState<number | null>(null);
+  const [confirmDeactivate, setConfirmDeactivate] = useState<User | null>(null);
 
   const canManage = canAccess(currentUser, 'users', 'crud');
 
@@ -46,21 +48,32 @@ export default function UsersPage() {
     if (error) toast.error(error.message);
   }, [error]);
 
-  const handleToggleActive = async (u: User) => {
-    if (u.id === currentUser?.id) {
-      toast.error('You cannot deactivate your own account.');
-      return;
-    }
+  const applyToggle = async (u: User) => {
     if (togglingId) return;
     setTogglingId(u.id);
     try {
       await usersApi.update(u.id, { is_active: !u.is_active });
       toast.success(u.is_active ? `${u.name} has been deactivated` : `${u.name} has been reactivated`);
+      setConfirmDeactivate(null);
       reload();
     } catch (err) {
       toast.error(parseApiError(err).message);
     } finally {
       setTogglingId(null);
+    }
+  };
+
+  // Deactivating a user locks them out mid-shift -- confirm first. Reactivating is the safe/
+  // reversible direction, so it skips the confirm step.
+  const handleToggleActive = (u: User) => {
+    if (u.id === currentUser?.id) {
+      toast.error('You cannot deactivate your own account.');
+      return;
+    }
+    if (u.is_active === false) {
+      applyToggle(u);
+    } else {
+      setConfirmDeactivate(u);
     }
   };
 
@@ -86,6 +99,7 @@ export default function UsersPage() {
           {
             key: 'actions',
             header: '',
+            isActions: true,
             render: (u: User) => (
               <button
                 onClick={(e) => { e.stopPropagation(); handleToggleActive(u); }}
@@ -145,6 +159,15 @@ export default function UsersPage() {
           onCreated={() => { setShowCreate(false); setPage(1); reload(); }}
         />
       )}
+      <ConfirmModal
+        open={!!confirmDeactivate}
+        title="Deactivate User"
+        message={confirmDeactivate ? <>Turn off <strong>{confirmDeactivate.name}</strong>&apos;s account? They won&apos;t be able to log in until you turn it back on.</> : ''}
+        confirmLabel="Deactivate"
+        loading={togglingId === confirmDeactivate?.id}
+        onConfirm={() => confirmDeactivate && applyToggle(confirmDeactivate)}
+        onCancel={() => setConfirmDeactivate(null)}
+      />
     </AppShell>
   );
 }

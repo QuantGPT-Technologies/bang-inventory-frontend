@@ -57,8 +57,8 @@ export const usersApi = {
 
 // --- Customers ---
 export const customersApi = {
-  list: (page = 1, per_page = 50) =>
-    api.get('/customers', { params: { page, per_page } }),
+  list: (page = 1, per_page = 50, q?: string) =>
+    api.get('/customers', { params: { page, per_page, q: q || undefined } }),
   get: (id: number) => api.get(`/customers/${id}`),
   create: (data: object) => api.post('/customers', data),
   update: (id: number, data: object) => api.put(`/customers/${id}`, data),
@@ -66,8 +66,8 @@ export const customersApi = {
 
 // --- Vendors ---
 export const vendorsApi = {
-  list: (page = 1, per_page = 50) =>
-    api.get('/vendors', { params: { page, per_page } }),
+  list: (page = 1, per_page = 50, q?: string) =>
+    api.get('/vendors', { params: { page, per_page, q: q || undefined } }),
   get: (id: number) => api.get(`/vendors/${id}`),
   create: (data: object) => api.post('/vendors', data),
   update: (id: number, data: object) => api.put(`/vendors/${id}`, data),
