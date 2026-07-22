@@ -12,6 +12,20 @@ import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import { TaskQueue } from '@/components/dashboard/TaskQueue';
 
+// Poll the dashboard's own load() this often while the page stays mounted -- background refresh,
+// not a user-visible loading state (see the isInitialLoad-style guard on `loading` below).
+const AUTO_REFRESH_MS = 60_000;
+
+/** "Updated Xs/Xm ago" from a completion timestamp, ticking live via the caller's re-render. */
+function formatAgo(sinceMs: number | null): string {
+  if (sinceMs == null) return '';
+  const deltaSec = Math.max(0, Math.floor((Date.now() - sinceMs) / 1000));
+  if (deltaSec < 5) return 'Updated just now';
+  if (deltaSec < 60) return `Updated ${deltaSec}s ago`;
+  const deltaMin = Math.floor(deltaSec / 60);
+  return `Updated ${deltaMin}m ago`;
+}
+
 export default function DashboardPage() {
   const [summary, setSummary] = useState<{
     active_batches?: number;
@@ -21,8 +35,13 @@ export default function DashboardPage() {
   }>({});
   const [recentBatches, setRecentBatches] = useState<Batch[]>([]);
   const [activeLots, setActiveLots] = useState<Lot[]>([]);
+  // Only the first load (no data yet) should show the "Loading…" placeholders below -- background
+  // refreshes (auto-refresh, retry) keep existing data on screen instead of blanking the page.
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [loading, setLoading] = useState(true);
   const [partialFailure, setPartialFailure] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
+  const [, setTick] = useState(0);
 
   const load = useCallback(async () => {
     let anyFailed = false;
@@ -37,6 +56,7 @@ export default function DashboardPage() {
     setRecentBatches(batchRes.data?.data?.items || []);
     setActiveLots(lotRes.data?.data?.items || []);
     setPartialFailure(anyFailed);
+    if (!anyFailed) setLastUpdatedAt(Date.now());
   }, []);
 
   useEffect(() => {
@@ -44,21 +64,44 @@ export default function DashboardPage() {
     (async () => {
       if (!cancelled) setLoading(true);
       await load();
-      if (!cancelled) setLoading(false);
+      if (!cancelled) {
+        setLoading(false);
+        setIsInitialLoad(false);
+      }
     })();
     return () => {
       cancelled = true;
     };
   }, [load]);
 
+  // Auto-refresh in the background every 60s -- no loading flash, old data stays visible
+  // (mirrors the isInitialLoad distinction Table.tsx uses for its own reloads).
+  useEffect(() => {
+    const id = setInterval(() => {
+      load();
+    }, AUTO_REFRESH_MS);
+    return () => clearInterval(id);
+  }, [load]);
+
+  // Live-ticking "Updated Xs ago" -- cheap re-render, no data refetch.
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <AppShell>
       <PageHeader
         title="Home"
         subtitle={new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+        action={
+          lastUpdatedAt != null ? (
+            <span className="text-sm font-semibold text-[var(--ink-muted)]">{formatAgo(lastUpdatedAt)}</span>
+          ) : undefined
+        }
       />
 
-      {partialFailure && !loading && (
+      {partialFailure && !isInitialLoad && (
         <div className="flex items-center justify-between gap-3 mb-4 text-sm font-semibold text-[var(--warning)] bg-[var(--warning-tint)] border-2 border-[var(--warning)] rounded-xl px-4 py-3">
           <span>Some numbers below did not load. They may be wrong or missing.</span>
           <Button variant="ghost" size="sm" onClick={() => { setLoading(true); load().finally(() => setLoading(false)); }}>
@@ -76,25 +119,31 @@ export default function DashboardPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <StatCard
-          label="Batches Running"
-          value={loading ? '—' : (summary.active_batches ?? recentBatches.filter(b => b.status !== 'completed').length)}
-          icon={<Factory size={22} />}
-          accent
-        />
-        <StatCard
-          label="Lots Running"
-          value={loading ? '—' : (summary.active_lots ?? activeLots.length)}
-          icon={<Layers size={22} />}
-        />
-        <StatCard
-          label="Done Today"
-          value={loading ? '—' : (summary.completed_today ?? '—')}
-          icon={<TrendingUp size={22} />}
-        />
+        <Link href="/batches" className="block rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]">
+          <StatCard
+            label="Batches Running"
+            value={isInitialLoad ? '—' : (summary.active_batches ?? recentBatches.filter(b => b.status !== 'completed').length)}
+            icon={<Factory size={22} />}
+            accent
+          />
+        </Link>
+        <Link href="/lots?status=in_progress" className="block rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]">
+          <StatCard
+            label="Lots Running"
+            value={isInitialLoad ? '—' : (summary.active_lots ?? activeLots.length)}
+            icon={<Layers size={22} />}
+          />
+        </Link>
+        <Link href="/batches?status=completed" className="block rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]">
+          <StatCard
+            label="Done Today"
+            value={isInitialLoad ? '—' : (summary.completed_today ?? '—')}
+            icon={<TrendingUp size={22} />}
+          />
+        </Link>
         <StatCard
           label="Total Scrap (kg)"
-          value={loading ? '—' : (summary.total_scrap_kg != null ? formatQty(summary.total_scrap_kg) : '—')}
+          value={isInitialLoad ? '—' : (summary.total_scrap_kg != null ? formatQty(summary.total_scrap_kg) : '—')}
           icon={<AlertTriangle size={22} />}
         />
       </div>
@@ -110,7 +159,7 @@ export default function DashboardPage() {
           }
           noPadding
         >
-          {loading ? (
+          {isInitialLoad ? (
             <div className="p-5 text-center text-base text-[var(--ink-muted)]">Loading…</div>
           ) : recentBatches.length === 0 ? (
             <div className="p-5 text-center text-base text-[var(--ink-muted)] italic">No batches yet.</div>
@@ -149,7 +198,7 @@ export default function DashboardPage() {
           }
           noPadding
         >
-          {loading ? (
+          {isInitialLoad ? (
             <div className="p-5 text-center text-base text-[var(--ink-muted)]">Loading…</div>
           ) : activeLots.length === 0 ? (
             <div className="p-5 text-center text-base text-[var(--ink-muted)] italic">No active lots.</div>

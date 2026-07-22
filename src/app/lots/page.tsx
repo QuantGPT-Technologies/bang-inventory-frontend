@@ -1,6 +1,6 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/Card';
@@ -20,9 +20,21 @@ const PER_PAGE = 20;
 const EMPTY: PaginatedResponse<Lot> = { items: [], total: 0, page: 1, per_page: PER_PAGE };
 
 export default function LotsPage() {
+  return (
+    <Suspense fallback={null}>
+      <LotsPageInner />
+    </Suspense>
+  );
+}
+
+function LotsPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Lets links elsewhere in the app (e.g. dashboard stat tiles) land here pre-filtered, using the
+  // same `status` values this page's own dropdown already sets -- read once on mount only, so the
+  // dropdown remains the single source of truth for filter state afterwards.
   const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || '');
   const [stepFilter, setStepFilter] = useState('');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');

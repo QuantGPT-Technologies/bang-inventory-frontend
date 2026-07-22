@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/authStore';
 import { authApi } from '@/lib/api';
 import { getErrorMessage } from '@/lib/utils';
 import { loginSchema, validate, type FieldErrors } from '@/lib/validation';
+import { useLocalMemory } from '@/lib/useLocalMemory';
 import { ToastContainer, toast } from '@/components/ui/Toast';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -31,7 +32,10 @@ function LoginFallback() {
 }
 
 function LoginForm() {
-  const [email, setEmail] = useState('');
+  // Per-device convenience only (see useLocalMemory) -- remembers the email used last time so
+  // returning users don't have to retype it. Password is never remembered.
+  const [lastEmail, setLastEmail] = useLocalMemory('login:last-email', '');
+  const [email, setEmail] = useState(lastEmail);
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -70,6 +74,7 @@ function LoginForm() {
         return;
       }
       login(token, user);
+      setLastEmail(result.data.email);
       const next = searchParams.get('next');
       router.replace(isSafeNextPath(next) ? next : '/dashboard');
     } catch (err) {

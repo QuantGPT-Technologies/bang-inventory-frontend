@@ -55,6 +55,12 @@ export function TaskQueue() {
   );
 }
 
+// How long an item can sit in the queue before we flag it as stale. Deliberately not the
+// amber/warning color (see Badge.tsx) -- that's reserved app-wide for "needs action now", and
+// every card in this queue already needs action, so staleness is a subtle ink-weight cue, not a
+// new loud badge.
+const STALE_AFTER_MS = 4 * 60 * 60 * 1000;
+
 function TaskCard({ item }: { item: AttentionItem }) {
   const router = useRouter();
   const Icon = NODE_TYPE_ICONS[item.node_type];
@@ -64,6 +70,8 @@ function TaskCard({ item }: { item: AttentionItem }) {
     : `Batch ${item.batch_number ?? item.batch_id}`;
   const href = item.entity_type === 'lot' ? `/lots/${item.lot_id}` : `/batches/${item.batch_id}`;
   const verb = verbForNodeType(item.node_type, item.status);
+  const waitingMs = Date.now() - new Date(item.waiting_since).getTime();
+  const isStale = Number.isFinite(waitingMs) && waitingMs > STALE_AFTER_MS;
 
   return (
     <div
@@ -72,7 +80,11 @@ function TaskCard({ item }: { item: AttentionItem }) {
     >
       <div
         className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
-        style={{ backgroundColor: `color-mix(in srgb, ${color} 16%, transparent)`, color }}
+        style={
+          isStale
+            ? { backgroundColor: 'color-mix(in srgb, var(--ink) 12%, transparent)', color: 'var(--ink)' }
+            : { backgroundColor: `color-mix(in srgb, ${color} 16%, transparent)`, color }
+        }
       >
         <Icon size={22} />
       </div>
@@ -81,7 +93,9 @@ function TaskCard({ item }: { item: AttentionItem }) {
           {verb} {item.node_name} — {entityLabel}
           {item.sku_code && <span className="text-[var(--ink-muted)] font-normal"> · {item.sku_code}</span>}
         </p>
-        <p className="text-sm text-[var(--ink-muted)] font-mono mt-0.5">Waiting since {formatDateTime(item.waiting_since)}</p>
+        <p className={`text-sm font-mono mt-0.5 ${isStale ? 'text-[var(--ink)] font-bold' : 'text-[var(--ink-muted)]'}`}>
+          Waiting since {formatDateTime(item.waiting_since)}
+        </p>
       </div>
       {item.can_act ? (
         <Button size="md" onClick={(e) => { e.stopPropagation(); router.push(href); }}>
