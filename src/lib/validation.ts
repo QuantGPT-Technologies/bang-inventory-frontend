@@ -160,7 +160,7 @@ export const skuSchema = z
 
 export const rawMaterialSchema = z.object({
   name: requiredText('Name', 150),
-  code: optionalText(50),
+  short_code: optionalText(50),
   vendor_id: z.number().int().positive().optional(),
   unit: requiredText('Unit', 20),
 });

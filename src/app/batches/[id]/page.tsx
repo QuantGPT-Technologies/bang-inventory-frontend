@@ -20,6 +20,7 @@ import {
   completeBlendSchema, splitLotsSchema, validate, toNumber, type FieldErrors,
 } from '@/lib/validation';
 import { useAsyncQuery } from '@/lib/useAsync';
+import { pushRecent } from '@/lib/useLocalMemory';
 import { NODE_TYPE_ICONS, NODE_TYPE_COLORS } from '@/components/workflow/workflowNodeMeta';
 import { Play, CheckCircle, Split, Plus, X, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
@@ -73,6 +74,15 @@ export default function BatchDetailPage() {
   useEffect(() => {
     if (error && !error.isNotFound) toast.error(error.message);
   }, [error]);
+
+  // Record this batch in the sidebar's "Recently Viewed" list once it's actually loaded (so we
+  // have the real batch number, not just the URL id, to show as the label) -- keyed on batch.id
+  // so it only fires once per successful load, not on every re-render/reload.
+  useEffect(() => {
+    if (batch) {
+      pushRecent('recently-viewed', JSON.stringify({ type: 'batch', id: batch.id, label: batch.batch_number }));
+    }
+  }, [batch?.id]);
 
   useEffect(() => {
     skusApi.list(1, 100).then((r) => setSkus(r.data.data?.items || [])).catch(() => {

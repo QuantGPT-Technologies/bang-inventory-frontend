@@ -27,6 +27,18 @@ export function formatQty(qty?: number, unit?: string): string {
   return unit ? `${formatted} ${unit}` : formatted;
 }
 
+/** Suggests a short code from a typed name (e.g. "Iron Powder" -> "IRON-POWDER"), for the
+ *  code-field autofill on create forms. Always left editable -- this is a starting point, not a
+ *  generated identifier the backend assigns, so collisions are the user's to resolve by editing. */
+export function suggestCode(name: string, maxLength = 20): string {
+  return name
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, maxLength);
+}
+
 /** Skippable per UI_GUIDE.md section 5: compaction and batching cannot be skipped. */
 export const SKIPPABLE_STEPS: Record<string, boolean> = {
   sintering: true,

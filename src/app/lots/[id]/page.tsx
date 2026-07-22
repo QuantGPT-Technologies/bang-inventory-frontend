@@ -13,6 +13,7 @@ import { cn, formatDateTime, formatQty, getNodeLabel, STEP_SCRAP_TYPES, SKIPPABL
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import { useAsyncQuery } from '@/lib/useAsync';
+import { pushRecent } from '@/lib/useLocalMemory';
 import { NODE_TYPE_ICONS, NODE_TYPE_COLORS, NODE_TYPE_LABELS, withAlpha } from '@/components/workflow/workflowNodeMeta';
 import { LotWorkflowCanvas } from '@/components/workflow/execution/LotWorkflowCanvas';
 import { DL } from '@/components/lots/DL';
@@ -84,6 +85,15 @@ export default function LotDetailPage() {
   useEffect(() => {
     if (error && !error.isNotFound) toast.error(error.message);
   }, [error]);
+
+  // Record this lot in the sidebar's "Recently Viewed" list once it's actually loaded (so we have
+  // the real lot number, not just the URL id, to show as the label) -- keyed on lot.id so it only
+  // fires once per successful load, not on every re-render/reload.
+  useEffect(() => {
+    if (lot) {
+      pushRecent('recently-viewed', JSON.stringify({ type: 'lot', id: lot.id, label: lot.lot_number }));
+    }
+  }, [lot?.id]);
 
   const reloadAll = useCallback(() => {
     reload();

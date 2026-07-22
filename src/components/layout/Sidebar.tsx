@@ -1,14 +1,16 @@
 'use client';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { readRecent } from '@/lib/useLocalMemory';
 import {
   Home, Factory, Package2, Users, Building2,
   Truck, FlaskConical, Wrench, Layers, Webhook, Workflow,
-  BarChart3, LogOut, ChevronRight, X
+  BarChart3, LogOut, ChevronRight, X, Clock
 } from 'lucide-react';
 
 // Grouped by what someone actually does, not by backend resource/admin category: the daily
@@ -64,9 +66,32 @@ const navItems = [
  * becomes a fixed off-canvas drawer (open/onClose controlled by AppShell) with a backdrop;
  * at `lg` and above it's back to the persistent static column, unaffected by open/onClose.
  */
+interface RecentlyViewedEntry {
+  type: 'lot' | 'batch';
+  id: number;
+  label: string;
+}
+
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
+
+  // Read from localStorage only after mount (not during render) so server-rendered and first-
+  // client-render markup match -- populated client-side in an effect to avoid a hydration mismatch.
+  const [recentlyViewed, setRecentlyViewed] = useState<RecentlyViewedEntry[]>([]);
+
+  useEffect(() => {
+    const parsed = readRecent('recently-viewed')
+      .map((raw) => {
+        try {
+          return JSON.parse(raw) as RecentlyViewedEntry;
+        } catch {
+          return null;
+        }
+      })
+      .filter((entry): entry is RecentlyViewedEntry => !!entry && !!entry.id && !!entry.label);
+    setRecentlyViewed(parsed.slice(0, 5));
+  }, [pathname]);
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + '/');
@@ -113,6 +138,26 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
             default scrollbar is styled for the light page background and looks like a stray pale
             block against this always-dark panel, in both the light and dark app themes. */}
         <nav className="sidebar-scroll flex-1 overflow-y-auto py-3 px-3 space-y-5">
+          {recentlyViewed.length > 0 && (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-white/35 px-2.5">
+                Recently Viewed
+              </p>
+              <div className="space-y-1 mt-2">
+                {recentlyViewed.map((entry) => (
+                  <NavLink
+                    key={`${entry.type}-${entry.id}`}
+                    href={`/${entry.type === 'lot' ? 'lots' : 'batches'}/${entry.id}`}
+                    icon={Clock}
+                    active={isActive(`/${entry.type === 'lot' ? 'lots' : 'batches'}/${entry.id}`)}
+                    onNavigate={onClose}
+                  >
+                    {entry.label}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          )}
           {navItems.map((section, si) => {
             if ('href' in section) {
               return (

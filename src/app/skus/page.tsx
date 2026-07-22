@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -15,32 +15,51 @@ import Textarea from '@/components/ui/Textarea';
 import { toast } from '@/components/ui/Toast';
 import { skusApi, customersApi, rawMaterialsApi } from '@/lib/api';
 import { SKU, Customer, RawMaterial, PaginatedResponse } from '@/lib/types';
-import { formatDate, formatQty, parseApiError } from '@/lib/utils';
+import { formatDate, formatQty, parseApiError, suggestCode } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import { skuSchema, validate, toNumber, type FieldErrors } from '@/lib/validation';
 import { useAsyncQuery } from '@/lib/useAsync';
-import { Plus, X } from 'lucide-react';
+import { useUrlState } from '@/lib/useUrlState';
+import { Plus, X, Search } from 'lucide-react';
 
 const PER_PAGE = 20;
 const EMPTY: PaginatedResponse<SKU> = { items: [], total: 0, page: 1, per_page: PER_PAGE };
 
 export default function SKUsPage() {
+  return (
+    <Suspense fallback={<AppShell><div className="text-base text-[var(--ink-muted)]">Loading…</div></AppShell>}>
+      <SKUsPageInner />
+    </Suspense>
+  );
+}
+
+function SKUsPageInner() {
   const router = useRouter();
   const { user } = useAuthStore();
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useUrlState('q', '');
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
   const [showCreate, setShowCreate] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [rawMaterials, setRawMaterials] = useState<RawMaterial[]>([]);
 
+  // Debounced so typing a product name doesn't fire a request per keystroke -- see the same
+  // pattern on the Batches/Lots list pages. The page reset lives in this same callback (not the
+  // input's onChange) so it fires once, together with the debounced value.
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
   const fetchSkus = useCallback(async () => {
-    const res = await skusApi.list(page, PER_PAGE);
+    const res = await skusApi.list(page, PER_PAGE, debouncedSearch || undefined);
     const data = res.data?.data;
     const items = Array.isArray(data?.items) ? data.items : [];
     return { items, total: typeof data?.total === 'number' ? data.total : items.length, page, per_page: PER_PAGE };
-  }, [page]);
+  }, [page, debouncedSearch]);
 
-  const { data, loading, error, reload } = useAsyncQuery(fetchSkus, [page], EMPTY);
+  const { data, loading, error, reload } = useAsyncQuery(fetchSkus, [page, debouncedSearch], EMPTY);
   const skus = data.items;
   const total = data.total;
 
@@ -90,6 +109,18 @@ export default function SKUsPage() {
       />
 
       <Card noPadding>
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border)] flex-wrap">
+          <div className="relative w-64">
+            <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--ink-muted)] pointer-events-none" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search products"
+              className="pl-11"
+            />
+          </div>
+        </div>
+
         {error && !loading ? (
           <ErrorState error={error} onRetry={reload} />
         ) : (
@@ -100,7 +131,7 @@ export default function SKUsPage() {
               keyExtractor={(r) => r.id}
               onRowClick={(r) => router.push(`/skus/${r.id}`)}
               loading={loading}
-              emptyMessage="No products found. Create one to get started."
+              emptyMessage={search ? 'No products match this search.' : 'No products found. Create one to get started.'}
             />
             <Pagination page={page} total={total} perPage={PER_PAGE} onChange={setPage} />
           </>
@@ -134,6 +165,10 @@ function CreateSKUModal({
 }) {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
+  // Tracks whether the user has hand-edited the Code field -- while false, Code auto-derives
+  // from Name (suggestCode) on every keystroke; once the user types into Code directly, that
+  // stops so we never clobber a deliberate choice.
+  const [codeManuallyEdited, setCodeManuallyEdited] = useState(false);
   const [description, setDescription] = useState('');
   const [customerId, setCustomerId] = useState<number | undefined>();
   const [unit, setUnit] = useState('pcs');
@@ -207,8 +242,26 @@ function CreateSKUModal({
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
-          <Input label="SKU Code" value={code} onChange={(e) => setCode(e.target.value)} error={errors.code} placeholder="SKU-001" maxLength={50} />
-          <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} error={errors.name} placeholder="Product Name" maxLength={150} />
+          <Input
+            label="SKU Code"
+            value={code}
+            onChange={(e) => { setCode(e.target.value); setCodeManuallyEdited(true); }}
+            error={errors.code}
+            placeholder="SKU-001"
+            maxLength={50}
+          />
+          <Input
+            label="Name"
+            value={name}
+            onChange={(e) => {
+              const next = e.target.value;
+              setName(next);
+              if (!codeManuallyEdited) setCode(suggestCode(next, 50));
+            }}
+            error={errors.name}
+            placeholder="Product Name"
+            maxLength={150}
+          />
         </div>
         <Textarea label="Description" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} maxLength={1000} error={errors.description} />
         <div className="grid grid-cols-2 gap-3">
