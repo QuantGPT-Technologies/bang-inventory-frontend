@@ -140,7 +140,11 @@ export default function LotsPage() {
               keyExtractor={(r) => r.id}
               onRowClick={(r) => router.push(`/lots/${r.id}`)}
               loading={loading}
-              emptyMessage="No lots found."
+              emptyMessage={
+                statusFilter || stepFilter || search
+                  ? 'No lots match your filters.'
+                  : 'No lots found.'
+              }
             />
             <Pagination page={page} total={total} perPage={PER_PAGE} onChange={setPage} />
           </>

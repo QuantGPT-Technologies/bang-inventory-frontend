@@ -387,7 +387,7 @@ function MaterialsForm({
           <div key={i} className="flex gap-2 items-end">
             <div className="flex-1">
               <Select
-                options={rawMaterials.map((r) => ({ value: r.id, label: `${r.name} (${r.unit})` }))}
+                options={rawMaterials.map((r) => ({ value: r.id, label: `${r.name} (${r.unit}) — ${r.current_stock} in stock` }))}
                 value={m.raw_material_id || ''}
                 onChange={(e) => updateMaterial(i, 'raw_material_id', Number(e.target.value))}
                 placeholder="Select material…"

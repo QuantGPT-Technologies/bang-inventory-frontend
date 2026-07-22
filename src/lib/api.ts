@@ -75,8 +75,8 @@ export const vendorsApi = {
 
 // --- SKUs ---
 export const skusApi = {
-  list: (page = 1, per_page = 50) =>
-    api.get('/skus', { params: { page, per_page } }),
+  list: (page = 1, per_page = 50, q?: string) =>
+    api.get('/skus', { params: { page, per_page, q: q || undefined } }),
   get: (id: number) => api.get(`/skus/${id}`),
   create: (data: object) => api.post('/skus', data),
   update: (id: number, data: object) => api.put(`/skus/${id}`, data),
@@ -86,8 +86,8 @@ export const skusApi = {
 
 // --- Raw Materials ---
 export const rawMaterialsApi = {
-  list: (page = 1, per_page = 50) =>
-    api.get('/raw-materials', { params: { page, per_page } }),
+  list: (page = 1, per_page = 50, q?: string) =>
+    api.get('/raw-materials', { params: { page, per_page, q: q || undefined } }),
   get: (id: number) => api.get(`/raw-materials/${id}`),
   create: (data: object) => api.post('/raw-materials', data),
   update: (id: number, data: object) => api.put(`/raw-materials/${id}`, data),
@@ -97,8 +97,8 @@ export const rawMaterialsApi = {
 
 // --- Consumables ---
 export const consumablesApi = {
-  list: (page = 1, per_page = 50) =>
-    api.get('/consumables', { params: { page, per_page } }),
+  list: (page = 1, per_page = 50, q?: string) =>
+    api.get('/consumables', { params: { page, per_page, q: q || undefined } }),
   get: (id: number) => api.get(`/consumables/${id}`),
   create: (data: object) => api.post('/consumables', data),
   update: (id: number, data: object) => api.put(`/consumables/${id}`, data),

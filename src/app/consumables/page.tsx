@@ -1,50 +1,90 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, Suspense } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Table, Pagination } from '@/components/ui/Table';
+import { Badge, stockStatusBadge } from '@/components/ui/Badge';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Modal } from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import { toast } from '@/components/ui/Toast';
-import { consumablesApi } from '@/lib/api';
-import { Consumable, PaginatedResponse } from '@/lib/types';
-import { formatDate, formatQty, parseApiError } from '@/lib/utils';
+import { consumablesApi, reportsApi } from '@/lib/api';
+import { Consumable, PaginatedResponse, StockLevelItem } from '@/lib/types';
+import { formatDate, formatQty, parseApiError, suggestCode } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import { consumableSchema, stockAdjustSchema, validate, toNumber, type FieldErrors } from '@/lib/validation';
 import { useAsyncQuery } from '@/lib/useAsync';
-import { Plus, TrendingUp, TrendingDown, Pencil } from 'lucide-react';
+import { useUrlState } from '@/lib/useUrlState';
+import { Plus, TrendingUp, TrendingDown, Pencil, Search } from 'lucide-react';
 
 const PER_PAGE = 20;
 const EMPTY: PaginatedResponse<Consumable> = { items: [], total: 0, page: 1, per_page: PER_PAGE };
 
+/** Canned reasons offered as one-tap chips above the Adjust Stock modal's Reason field -- the
+ *  field itself is still freetext, this just covers the handful of reasons that account for
+ *  most stock adjustments so the common case doesn't require typing. */
+const STOCK_REASON_QUICK_PICKS = ['From vendor', 'Used in production', 'Stock count correction', 'Damaged/wasted'];
+
 export default function ConsumablesPage() {
+  return (
+    <Suspense fallback={<AppShell><div className="text-base text-[var(--ink-muted)]">Loading…</div></AppShell>}>
+      <ConsumablesPageInner />
+    </Suspense>
+  );
+}
+
+function ConsumablesPageInner() {
   const { user } = useAuthStore();
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useUrlState('q', '');
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
   const [showCreate, setShowCreate] = useState(false);
   const [showAdjust, setShowAdjust] = useState<{ id: number; name: string; stock: number; unit: string } | null>(null);
+  // Keyed by consumable id -- fetched once (stockLevels() returns every consumable regardless of
+  // this page's pagination), not refetched per page. Left empty (no badges shown) if the call
+  // fails, per the "fail gracefully" rule -- this is a supplementary signal, not core data.
+  const [stockById, setStockById] = useState<Record<number, StockLevelItem>>({});
 
   const canWrite = canAccess(user, 'consumables', 'write');
   const canStock = canAccess(user, 'consumables', 'stock');
 
+  // Debounced so typing a consumable name doesn't fire a request per keystroke -- see the same
+  // pattern on the Batches/Lots list pages. The page reset lives in this same callback (not the
+  // input's onChange) so it fires once, together with the debounced value.
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
   const fetchConsumables = useCallback(async () => {
-    const res = await consumablesApi.list(page, PER_PAGE);
+    const res = await consumablesApi.list(page, PER_PAGE, debouncedSearch || undefined);
     const data = res.data?.data;
     const items = Array.isArray(data?.items) ? data.items : [];
     return { items, total: typeof data?.total === 'number' ? data.total : items.length, page, per_page: PER_PAGE };
-  }, [page]);
+  }, [page, debouncedSearch]);
 
-  const { data, loading, error, reload } = useAsyncQuery(fetchConsumables, [page], EMPTY);
+  const { data, loading, error, reload } = useAsyncQuery(fetchConsumables, [page, debouncedSearch], EMPTY);
   const consumables = data.items;
   const total = data.total;
 
   useEffect(() => {
     if (error) toast.error(error.message);
   }, [error]);
+
+  useEffect(() => {
+    reportsApi.stockLevels()
+      .then((r) => {
+        const items: StockLevelItem[] = r.data?.data?.consumables || [];
+        setStockById(Object.fromEntries(items.map((i) => [i.id, i])));
+      })
+      .catch(() => {
+        // Supplementary "needs reordering" signal only -- omit badges rather than block the page.
+      });
+  }, []);
 
   const columns = [
     { key: 'name', header: 'Name', primary: true, render: (c: Consumable) => <span className="font-medium">{c.name}</span> },
@@ -54,12 +94,22 @@ export default function ConsumablesPage() {
       header: 'Stock',
       render: (c: Consumable) => <span className={`font-mono ${c.current_stock <= 0 ? 'text-[var(--danger)]' : ''}`}>{formatQty(c.current_stock, c.unit)}</span>,
     },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (c: Consumable) => {
+        const status = stockById[c.id]?.status;
+        if (status !== 'out' && status !== 'low') return null;
+        return <Badge variant={stockStatusBadge(status)}>{status === 'out' ? 'Out of Stock' : 'Low Stock'}</Badge>;
+      },
+    },
     { key: 'created_at', header: 'Added', hideInCard: true, render: (c: Consumable) => formatDate(c.created_at) },
     ...(canStock
       ? [
           {
             key: 'actions',
             header: '',
+            isActions: true,
             render: (c: Consumable) => (
               <button
                 onClick={(e) => { e.stopPropagation(); setShowAdjust({ id: c.id, name: c.name, stock: c.current_stock, unit: c.unit }); }}
@@ -88,6 +138,18 @@ export default function ConsumablesPage() {
       />
 
       <Card noPadding>
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border)] flex-wrap">
+          <div className="relative w-64">
+            <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--ink-muted)] pointer-events-none" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search consumables"
+              className="pl-11"
+            />
+          </div>
+        </div>
+
         {error && !loading ? (
           <ErrorState error={error} onRetry={reload} />
         ) : (
@@ -97,7 +159,7 @@ export default function ConsumablesPage() {
               data={consumables}
               keyExtractor={(c) => c.id}
               loading={loading}
-              emptyMessage="No consumables found."
+              emptyMessage={search ? 'No consumables match this search.' : 'No consumables found.'}
             />
             <Pagination page={page} total={total} perPage={PER_PAGE} onChange={setPage} />
           </>
@@ -124,6 +186,9 @@ export default function ConsumablesPage() {
 function CreateConsumableModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
+  // Tracks whether the user has hand-edited Code -- while false, Code auto-derives from Name
+  // (suggestCode) on every keystroke; once the user types into Code directly, that stops.
+  const [codeManuallyEdited, setCodeManuallyEdited] = useState(false);
   const [unit, setUnit] = useState('pcs');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -159,8 +224,26 @@ function CreateConsumableModal({ onClose, onCreated }: { onClose: () => void; on
       footer={<><Button variant="ghost" onClick={onClose} disabled={loading}>Cancel</Button><Button loading={loading} disabled={loading} onClick={handleSubmit as unknown as React.MouseEventHandler}>Create</Button></>}
     >
       <form onSubmit={handleSubmit} className="space-y-3">
-        <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} error={errors.name} placeholder="Mold Insert #5" maxLength={150} />
-        <Input label="Code" value={code} onChange={(e) => setCode(e.target.value)} error={errors.code} placeholder="CS-001" maxLength={50} />
+        <Input
+          label="Name"
+          value={name}
+          onChange={(e) => {
+            const next = e.target.value;
+            setName(next);
+            if (!codeManuallyEdited) setCode(suggestCode(next, 50));
+          }}
+          error={errors.name}
+          placeholder="Mold Insert #5"
+          maxLength={150}
+        />
+        <Input
+          label="Code"
+          value={code}
+          onChange={(e) => { setCode(e.target.value); setCodeManuallyEdited(true); }}
+          error={errors.code}
+          placeholder="CS-001"
+          maxLength={50}
+        />
         <Select label="Unit" options={[{ value: 'pcs', label: 'pcs' }, { value: 'kg', label: 'kg' }, { value: 'L', label: 'L' }]} value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="" />
       </form>
     </Modal>
@@ -230,6 +313,18 @@ function AdjustStockModal({ id, name, stock, unit, onClose, onDone }: { id: numb
             {direction === 'consume' && <span className="flex items-center gap-1.5"><TrendingDown size={18} /> New stock: {formatQty(Math.max(0, stock - qtyNum), unit)}</span>}
           </div>
         )}
+        <div className="flex flex-wrap gap-1.5">
+          {STOCK_REASON_QUICK_PICKS.map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => setReason(r)}
+              className="text-sm font-semibold px-3 min-h-9 rounded-full border-2 border-[var(--border-strong)] text-[var(--ink-light)] hover:bg-[var(--paper-sunken)] transition-colors"
+            >
+              {r}
+            </button>
+          ))}
+        </div>
         <Input label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} error={errors.reason} placeholder="e.g. From vendor, used in production" maxLength={500} />
       </form>
     </Modal>

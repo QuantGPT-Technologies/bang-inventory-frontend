@@ -57,7 +57,7 @@ export interface SKU {
 export interface RawMaterial {
   id: number;
   name: string;
-  code?: string;
+  short_code?: string;
   unit: string;
   current_stock: number;
   vendor_id?: number;
