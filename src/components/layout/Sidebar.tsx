@@ -109,8 +109,10 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
           </button>
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-5">
+        {/* Nav -- dark-themed scrollbar (sidebar-scroll class, see globals.css) since the app's
+            default scrollbar is styled for the light page background and looks like a stray pale
+            block against this always-dark panel, in both the light and dark app themes. */}
+        <nav className="sidebar-scroll flex-1 overflow-y-auto py-3 px-3 space-y-5">
           {navItems.map((section, si) => {
             if ('href' in section) {
               return (
