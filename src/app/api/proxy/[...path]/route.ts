@@ -7,17 +7,29 @@ import { NextRequest, NextResponse } from 'next/server';
 // NEXT_PUBLIC_API_BASE_URL=/api/proxy), and this handler exchanges Vercel's own OIDC identity
 // token for a short-lived GCP access token (Workload Identity Federation -- no service-account
 // key ever exists) and forwards the request to Cloud Run with that token attached.
+// The GCP-facing audience the token exchange (and Google STS) require. This must match what the
+// WIF provider ("vercel-provider") trusts -- it's not the same value as GCP_WORKLOAD_IDENTITY_PROVIDER
+// used below for `audience`/`service_account_impersonation_url` (those name the *provider
+// resource*, not the *token audience*), but here it doubles as both since the pool/provider was
+// configured to trust its own resource name as the token audience.
+const gcpAudience = `//iam.googleapis.com/${process.env.GCP_WORKLOAD_IDENTITY_PROVIDER}`;
+
 const authClient = ExternalAccountClient.fromJSON({
   type: 'external_account',
-  audience: `//iam.googleapis.com/${process.env.GCP_WORKLOAD_IDENTITY_PROVIDER}`,
+  audience: gcpAudience,
   subject_token_type: 'urn:ietf:params:oauth:token-type:jwt',
   token_url: 'https://sts.googleapis.com/v1/token',
   service_account_impersonation_url: `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${process.env.GCP_SERVICE_ACCOUNT_EMAIL}:generateAccessToken`,
   // Pulls the current request's Vercel OIDC token instead of reading it from a file/URL --
   // google-auth-library calls this on every token exchange, so it always gets a fresh token
   // rather than one captured at module load.
+  //
+  // Without an explicit `audience`, getVercelOidcToken() returns Vercel's generic project-scoped
+  // token (aud: "https://vercel.com/<team>"), which Google STS rejects with "invalid_grant: The
+  // audience in ID Token ... does not match the expected audience" -- the WIF provider only
+  // accepts tokens minted specifically for it, so the audience must be requested explicitly here.
   subject_token_supplier: {
-    getSubjectToken: () => getVercelOidcToken(),
+    getSubjectToken: () => getVercelOidcToken({ audience: gcpAudience }),
   },
 });
 
