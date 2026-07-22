@@ -102,6 +102,7 @@ export default function WebhooksPage() {
           {
             key: 'actions',
             header: '',
+            isActions: true,
             render: (w: Webhook) => (
               <div className="flex items-center gap-2 justify-end">
                 <button
@@ -223,6 +224,16 @@ function WebhookModal({
     setEvents((prev) => (prev.includes(e) ? prev.filter((x) => x !== e) : [...prev, e]));
   };
 
+  const batchEvents = EVENT_OPTIONS.filter((e) => e.startsWith('batch.'));
+  const lotEvents = EVENT_OPTIONS.filter((e) => e.startsWith('lot.'));
+
+  const handleUrlBlur = () => {
+    const trimmed = url.trim();
+    if (trimmed && !/^https?:\/\//i.test(trimmed)) {
+      setUrl(`https://${trimmed}`);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading) return;
@@ -269,10 +280,15 @@ function WebhookModal({
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} error={errors.name} placeholder="Production Alerts" maxLength={150} />
-        <Input label="URL" value={url} onChange={(e) => setUrl(e.target.value)} error={errors.url} placeholder="https://example.com/webhook" />
+        <Input label="URL" value={url} onChange={(e) => setUrl(e.target.value)} onBlur={handleUrlBlur} error={errors.url} placeholder="https://example.com/webhook" />
         <Input label="Secret (optional)" type="password" value={secret} onChange={(e) => setSecret(e.target.value)} error={errors.secret} placeholder={webhook ? 'Leave blank to keep existing secret' : 'For HMAC signature'} />
         <div>
           <label className="text-sm font-bold text-[var(--ink-light)] uppercase tracking-wide block mb-2">Events</label>
+          <div className="flex flex-wrap gap-2 mb-2.5">
+            <button type="button" onClick={() => setEvents(EVENT_OPTIONS)} className="text-sm font-semibold px-3 min-h-9 rounded-full border-2 border-[var(--border-strong)] text-[var(--ink-light)] hover:bg-[var(--paper-sunken)] transition-colors">All</button>
+            <button type="button" onClick={() => setEvents(batchEvents)} className="text-sm font-semibold px-3 min-h-9 rounded-full border-2 border-[var(--border-strong)] text-[var(--ink-light)] hover:bg-[var(--paper-sunken)] transition-colors">Batch events</button>
+            <button type="button" onClick={() => setEvents(lotEvents)} className="text-sm font-semibold px-3 min-h-9 rounded-full border-2 border-[var(--border-strong)] text-[var(--ink-light)] hover:bg-[var(--paper-sunken)] transition-colors">Lot events</button>
+          </div>
           <div className="flex flex-wrap gap-2">
             {EVENT_OPTIONS.map((ev) => (
               <label key={ev} className="flex items-center gap-2 text-sm min-h-11 px-1 cursor-pointer">
