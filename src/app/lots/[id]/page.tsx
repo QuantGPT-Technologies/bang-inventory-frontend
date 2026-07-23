@@ -399,10 +399,13 @@ export default function LotDetailPage() {
                           </div>
                         )}
                         {scrapEntries && scrapEntries.length > 0 && (
-                          <div className="flex gap-2 mt-1 flex-wrap">
+                          <div className="flex gap-2 mt-1 flex-wrap items-center">
                             {scrapEntries.map((se) => (
-                              <span key={se.id} className="text-xs font-semibold bg-[var(--danger-tint)] text-[var(--danger)] px-2 py-0.5 rounded-full">
-                                {SCRAP_TYPE_LABELS[se.scrap_type] || se.scrap_type.replace(/_/g, ' ')}: {formatQty(se.quantity, se.unit)}
+                              <span key={se.id} className="inline-flex items-center gap-1.5">
+                                <span className="text-xs font-semibold bg-[var(--danger-tint)] text-[var(--danger)] px-2 py-0.5 rounded-full">
+                                  {SCRAP_TYPE_LABELS[se.scrap_type] || se.scrap_type.replace(/_/g, ' ')}: {formatQty(se.quantity, se.unit)}
+                                </span>
+                                {se.is_auto_calculated && <Badge variant="muted">Auto</Badge>}
                               </span>
                             ))}
                           </div>

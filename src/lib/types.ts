@@ -91,7 +91,22 @@ export interface BatchScrap {
   quantity: number;
   unit: string;
   notes?: string | null;
+  /** True for the system-owned row auto-inserted on blend completion to reconcile
+   * planned-vs-actual material quantities net of manually logged scrap. Absent/false for
+   * operator-entered rows. */
+  is_auto_calculated?: boolean;
   created_at: string;
+}
+
+/** Backend-computed summary of how a completed blend's scrap reconciles against planned vs
+ * actual material quantities -- mirrors StepVariance.reconciliation_note's role for lot steps.
+ * Present on GET /batches/:id once the batch has been through CompleteBlending. */
+export interface BatchScrapReconciliation {
+  planned_total: number;
+  actual_total: number;
+  manual_scrap: number;
+  auto_scrap: number;
+  reconciliation_note?: string;
 }
 
 export interface Batch {
@@ -107,6 +122,7 @@ export interface Batch {
   notes?: string | null;
   materials?: BatchMaterial[];
   scrap?: BatchScrap[];
+  scrap_reconciliation?: BatchScrapReconciliation;
   lots?: Lot[];
   created_by?: number;
   created_by_name?: string;
@@ -126,6 +142,9 @@ export interface ScrapEntry {
   unit: string;
   notes?: string;
   recorded_by_name?: string;
+  /** True for the system-owned row auto-inserted on step completion/override to reconcile
+   * input-vs-output net of manually logged scrap. Absent/false for operator-entered rows. */
+  is_auto_calculated?: boolean;
   created_at: string;
 }
 
@@ -135,8 +154,15 @@ export interface StepVariance {
   output_diff: number;
   output_diff_pct: number;
   yield_pct: number;
+  /** Always reconciled with input/output when units allow (input_unit === output_unit) -- the
+   * backend auto-inserts the unaccounted remainder as a scrap_entries row, so this sum no longer
+   * requires the operator to have logged every gram by hand. */
   total_scrap: number;
   scrap_unit: string;
+  /** Explains why no auto-calculated scrap row could be created (unit mismatch between
+   * input/output), or flags that the reconciled remainder came out negative (likely a
+   * data-entry error). Absent when reconciliation ran cleanly. */
+  reconciliation_note?: string;
 }
 
 export interface ConsumableUsageDetail {

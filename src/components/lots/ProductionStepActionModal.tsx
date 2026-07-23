@@ -92,6 +92,23 @@ export function ProductionStepActionModal({
   const noConsumablesAvailable = consumables.length === 0;
   const selectedConsumable = consumables.find((c) => c.id === consumableId);
 
+  // Live "implied scrap" preview for the complete-step form -- mirrors the backend's own
+  // reconciliation formula (input - output - manually logged scrap) so the estimate the operator
+  // sees here matches what the backend will actually persist as the auto-calculated scrap row.
+  // Gated on the same input_unit === output_unit condition completeStepSchema already uses --
+  // an input/output qty comparison is only meaningful when both share a unit (e.g. compaction
+  // converts kg -> pcs, where the raw numbers are unrelated).
+  const impliedScrapUnitsMatch = !!currentStep?.input_unit && !!currentStep?.output_unit && currentStep.input_unit === currentStep.output_unit;
+  const parsedCompleteInput = toNumber(inputQty);
+  const parsedCompleteOutput = toNumber(outputQty);
+  const alreadyLoggedManualScrap = (currentStep?.scrap_entries || [])
+    .filter((se) => !se.is_auto_calculated && se.unit === currentStep?.input_unit)
+    .reduce((sum, se) => sum + se.quantity, 0);
+  const impliedScrap =
+    impliedScrapUnitsMatch && parsedCompleteInput != null && parsedCompleteOutput != null
+      ? parsedCompleteInput - parsedCompleteOutput - alreadyLoggedManualScrap
+      : null;
+
   const titles: Record<string, string> = {
     start: `Start ${label}`,
     complete: `Finish ${label}`,
@@ -276,6 +293,23 @@ export function ProductionStepActionModal({
           <>
             <Input label={`Real Amount In (${currentStep?.input_unit || lot.unit || 'unit'})`} type="number" step={qtyStepAttr(currentStep?.input_unit)} min="0" value={inputQty} onChange={(e) => setInputQty(e.target.value)} error={errors.actual_input_qty} placeholder={qtyPlaceholder(currentStep?.input_unit)} />
             <Input label={`Real Amount Out (${currentStep?.output_unit || lot.unit || 'unit'})`} type="number" step={qtyStepAttr(currentStep?.output_unit)} min="0" value={outputQty} onChange={(e) => setOutputQty(e.target.value)} error={errors.actual_output_qty} placeholder={qtyPlaceholder(currentStep?.output_unit)} />
+            {!impliedScrapUnitsMatch ? (
+              <p className="text-sm text-[var(--ink-muted)]">
+                Scrap cannot be estimated here — {label} converts {currentStep?.input_unit || 'the input unit'} into a different unit ({currentStep?.output_unit || 'the output unit'}).
+              </p>
+            ) : impliedScrap != null ? (
+              impliedScrap > 1e-6 ? (
+                <p className="text-sm font-semibold text-[var(--info)] bg-[var(--info-tint)] border border-[var(--info)] rounded-lg px-3 py-2.5">
+                  Estimated scrap: {formatQty(impliedScrap, currentStep?.input_unit)} (estimate)
+                </p>
+              ) : impliedScrap < -1e-6 ? (
+                <p className="text-sm font-semibold text-[var(--warning)] bg-[var(--warning-tint)] border border-[var(--warning)] rounded-lg px-3 py-2.5">
+                  Amount out is more than amount in (after logged scrap) — double check your numbers.
+                </p>
+              ) : (
+                <p className="text-sm text-[var(--ink-muted)]">No scrap expected.</p>
+              )
+            ) : null}
             <Input label="Machine Name" value={machineName} onChange={(e) => setMachineName(e.target.value)} placeholder="Press-A1" maxLength={100} />
             <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} maxLength={1000} />
           </>
@@ -423,27 +457,40 @@ function ProductionStepAnalyticsView({ loading, error, data }: { loading: boolea
             </>
           )}
         </dl>
+        {v?.reconciliation_note && (
+          <p className="text-sm font-semibold text-[var(--warning)] bg-[var(--warning-tint)] border border-[var(--warning)] rounded-lg px-3 py-2.5 mt-3">
+            {v.reconciliation_note}
+          </p>
+        )}
       </DetailSection>
 
       <DetailSection title={`Scrap${data.scrap_entries?.length ? ` (${data.scrap_entries.length})` : ''}`}>
         {!data.scrap_entries?.length ? (
           <p className="text-base text-[var(--ink-muted)] italic">No scrap recorded for this step.</p>
         ) : (
-          <div className="border border-[var(--border)] rounded-lg divide-y divide-[var(--border)]">
-            {data.scrap_entries.map((se) => (
-              <div key={se.id} className="px-3 py-2.5 text-base flex items-center justify-between gap-2">
-                <div>
-                  <span className="font-semibold">{SCRAP_TYPE_LABELS[se.scrap_type] || se.scrap_type.replace(/_/g, ' ')}</span>
-                  <span className="text-[var(--ink-muted)]"> — {formatQty(se.quantity, se.unit)}</span>
-                  {se.notes && <p className="text-sm text-[var(--ink-muted)]">{se.notes}</p>}
+          <>
+            {data.scrap_entries.some((se) => se.is_auto_calculated) && (
+              <p className="text-sm text-[var(--ink-muted)] mb-2">
+                Auto entries are calculated automatically from input/output amounts.
+              </p>
+            )}
+            <div className="border border-[var(--border)] rounded-lg divide-y divide-[var(--border)]">
+              {data.scrap_entries.map((se) => (
+                <div key={se.id} className="px-3 py-2.5 text-base flex items-center justify-between gap-2">
+                  <div>
+                    <span className="font-semibold">{SCRAP_TYPE_LABELS[se.scrap_type] || se.scrap_type.replace(/_/g, ' ')}</span>
+                    <span className="text-[var(--ink-muted)]"> — {formatQty(se.quantity, se.unit)}</span>
+                    {se.is_auto_calculated && <Badge variant="muted" className="ml-2">Auto</Badge>}
+                    {se.notes && <p className="text-sm text-[var(--ink-muted)]">{se.notes}</p>}
+                  </div>
+                  <div className="text-right text-sm text-[var(--ink-muted)] flex-shrink-0">
+                    {se.recorded_by_name && <div>{se.recorded_by_name}</div>}
+                    <div>{formatDateTime(se.created_at)}</div>
+                  </div>
                 </div>
-                <div className="text-right text-sm text-[var(--ink-muted)] flex-shrink-0">
-                  {se.recorded_by_name && <div>{se.recorded_by_name}</div>}
-                  <div>{formatDateTime(se.created_at)}</div>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </>
         )}
       </DetailSection>
 

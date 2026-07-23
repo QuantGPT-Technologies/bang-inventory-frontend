@@ -188,26 +188,43 @@ export default function BatchDetailPage() {
         </Card>
 
         {/* Scrap */}
-        {batch.scrap && batch.scrap.length > 0 && (
+        {((batch.scrap && batch.scrap.length > 0) || batch.scrap_reconciliation?.reconciliation_note) && (
           <Card title="Scrap" className="lg:col-span-3">
-            <table className="w-full text-base">
-              <thead>
-                <tr className="border-b border-[var(--border)]">
-                  <th className="text-left py-2 text-sm font-bold uppercase tracking-wide text-[var(--ink-muted)]">Type</th>
-                  <th className="text-right py-2 text-sm font-bold uppercase tracking-wide text-[var(--ink-muted)]">Quantity</th>
-                  <th className="text-left py-2 text-sm font-bold uppercase tracking-wide text-[var(--ink-muted)]">Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {batch.scrap.map((s) => (
-                  <tr key={s.id} className="border-b border-[var(--border)] last:border-0">
-                    <td className="py-2.5">{SCRAP_TYPE_LABELS[s.scrap_type] || s.scrap_type.replace(/_/g, ' ')}</td>
-                    <td className="py-2.5 text-right font-mono">{formatQty(s.quantity, s.unit)}</td>
-                    <td className="py-2.5 text-[var(--ink-muted)]">{s.notes || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {batch.scrap && batch.scrap.length > 0 && (
+              <>
+                {batch.scrap.some((s) => s.is_auto_calculated) && (
+                  <p className="text-sm text-[var(--ink-muted)] mb-2">
+                    Auto entries are calculated automatically from the planned-vs-actual material gap.
+                  </p>
+                )}
+                <table className="w-full text-base">
+                  <thead>
+                    <tr className="border-b border-[var(--border)]">
+                      <th className="text-left py-2 text-sm font-bold uppercase tracking-wide text-[var(--ink-muted)]">Type</th>
+                      <th className="text-right py-2 text-sm font-bold uppercase tracking-wide text-[var(--ink-muted)]">Quantity</th>
+                      <th className="text-left py-2 text-sm font-bold uppercase tracking-wide text-[var(--ink-muted)]">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {batch.scrap.map((s) => (
+                      <tr key={s.id} className="border-b border-[var(--border)] last:border-0">
+                        <td className="py-2.5">
+                          {SCRAP_TYPE_LABELS[s.scrap_type] || s.scrap_type.replace(/_/g, ' ')}
+                          {s.is_auto_calculated && <Badge variant="muted" className="ml-2">Auto</Badge>}
+                        </td>
+                        <td className="py-2.5 text-right font-mono">{formatQty(s.quantity, s.unit)}</td>
+                        <td className="py-2.5 text-[var(--ink-muted)]">{s.notes || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+            {batch.scrap_reconciliation?.reconciliation_note && (
+              <p className={`text-sm font-semibold text-[var(--warning)] bg-[var(--warning-tint)] border border-[var(--warning)] rounded-lg px-3 py-2.5 ${batch.scrap && batch.scrap.length > 0 ? 'mt-3' : ''}`}>
+                {batch.scrap_reconciliation.reconciliation_note}
+              </p>
+            )}
           </Card>
         )}
 
@@ -378,6 +395,18 @@ function StartBlendModal({ batch, onClose, onDone }: { batch: Batch; onClose: ()
 
 interface ScrapRow { quantity: string; unit: string; notes: string }
 
+// Mirrors the backend's ConvertScrapUnit (internal/repository/batch_repo.go) so the client-side
+// implied-scrap preview matches what the backend will actually reconcile -- manual blend scrap
+// commonly defaults to grams while a batch is denominated in kg. Returns null when the pairing
+// isn't convertible (anything other than identity or g<->kg), matching the backend's policy of
+// excluding non-convertible rows from the sum rather than mis-summing them.
+function convertScrapUnit(qty: number, fromUnit: string, toUnit: string): number | null {
+  if (fromUnit === toUnit) return qty;
+  if (fromUnit === 'g' && toUnit === 'kg') return qty / 1000;
+  if (fromUnit === 'kg' && toUnit === 'g') return qty * 1000;
+  return null;
+}
+
 function CompleteBlendModal({ batch, onClose, onDone }: { batch: Batch; onClose: () => void; onDone: () => void }) {
   const [actualQtys, setActualQtys] = useState<Record<number, string>>({});
   const [scrapRows, setScrapRows] = useState<ScrapRow[]>([]);
@@ -385,6 +414,23 @@ function CompleteBlendModal({ batch, onClose, onDone }: { batch: Batch; onClose:
   const [errors, setErrors] = useState<FieldErrors>({});
 
   const hasMaterials = (batch.materials || []).length > 0;
+
+  // Live "implied scrap" preview, same reconciliation formula the backend now runs automatically
+  // on blend completion (SUM(planned_qty) - SUM(actual_qty) - manually logged scrap) -- gated on
+  // every material sharing the batch's own unit, since a cross-unit sum isn't meaningful.
+  const allMaterialsMatchBatchUnit = (batch.materials || []).every((m) => (m.unit || batch.unit) === batch.unit);
+  const plannedTotal = (batch.materials || []).reduce((s, m) => s + m.planned_qty, 0);
+  const enteredActualTotal = (batch.materials || []).reduce((s, m) => {
+    const parsed = toNumber(actualQtys[m.raw_material_id] ?? String(m.planned_qty));
+    return s + (parsed ?? m.planned_qty);
+  }, 0);
+  const enteredScrapTotal = scrapRows.reduce((s, r) => {
+    const parsed = toNumber(r.quantity);
+    if (parsed == null) return s;
+    const converted = convertScrapUnit(parsed, r.unit || batch.unit, batch.unit);
+    return converted == null ? s : s + converted;
+  }, 0);
+  const impliedBlendScrap = hasMaterials && allMaterialsMatchBatchUnit ? plannedTotal - enteredActualTotal - enteredScrapTotal : null;
 
   const addScrapRow = () => setScrapRows((r) => [...r, { quantity: '', unit: batch.unit, notes: '' }]);
   const removeScrapRow = (i: number) => setScrapRows((r) => r.filter((_, idx) => idx !== i));
@@ -476,6 +522,11 @@ function CompleteBlendModal({ batch, onClose, onDone }: { batch: Batch; onClose:
               <Plus size={16} /> Add
             </Button>
           </div>
+          <p className="text-sm text-[var(--ink-muted)] mb-2">
+            Only log spillage you can identify and measure — the system automatically records the
+            remaining planned-vs-actual gap, so there is no need to account for the whole
+            difference here.
+          </p>
           {scrapRows.length === 0 ? (
             <p className="text-base text-[var(--ink-muted)] italic">No spilled material.</p>
           ) : (
@@ -500,6 +551,19 @@ function CompleteBlendModal({ batch, onClose, onDone }: { batch: Batch; onClose:
             </div>
           )}
           {errors.scrap && <p className="text-sm font-semibold text-[var(--danger)] mt-1.5">{errors.scrap}</p>}
+          {impliedBlendScrap != null && (
+            impliedBlendScrap > 1e-6 ? (
+              <p className="text-sm font-semibold text-[var(--info)] bg-[var(--info-tint)] border border-[var(--info)] rounded-lg px-3 py-2.5 mt-2">
+                Estimated unaccounted scrap: {formatQty(impliedBlendScrap, batch.unit)} (estimate) — calculated automatically, no need to log it above.
+              </p>
+            ) : impliedBlendScrap < -1e-6 ? (
+              <p className="text-sm font-semibold text-[var(--warning)] bg-[var(--warning-tint)] border border-[var(--warning)] rounded-lg px-3 py-2.5 mt-2">
+                Real amounts plus logged spillage add up to more than the planned total — double check your numbers.
+              </p>
+            ) : (
+              <p className="text-sm text-[var(--ink-muted)] mt-2">No unaccounted scrap expected.</p>
+            )
+          )}
         </div>
       </form>
     </Modal>
