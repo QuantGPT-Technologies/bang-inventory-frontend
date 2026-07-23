@@ -13,7 +13,7 @@ import Input from '@/components/ui/Input';
 import { toast } from '@/components/ui/Toast';
 import { vendorsApi } from '@/lib/api';
 import { Vendor, PaginatedResponse } from '@/lib/types';
-import { formatDate, parseApiError, suggestCode } from '@/lib/utils';
+import { formatDate, parseApiError, suggestCode, resolvePaginationTotal } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import { vendorSchema, validate, type FieldErrors } from '@/lib/validation';
@@ -53,7 +53,7 @@ function VendorsPageInner() {
     const res = await vendorsApi.list(page, PER_PAGE, debouncedSearch || undefined);
     const data = res.data?.data;
     const items = Array.isArray(data?.items) ? data.items : [];
-    return { items, total: typeof data?.total === 'number' ? data.total : items.length, page, per_page: PER_PAGE };
+    return { items, total: resolvePaginationTotal(data?.total, items, page, PER_PAGE), page, per_page: PER_PAGE };
   }, [page, debouncedSearch]);
 
   const { data, loading, error, reload } = useAsyncQuery(fetchVendors, [page, debouncedSearch], EMPTY);

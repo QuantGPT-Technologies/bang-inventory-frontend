@@ -14,7 +14,7 @@ import Textarea from '@/components/ui/Textarea';
 import { toast } from '@/components/ui/Toast';
 import { workflowTemplatesApi } from '@/lib/api';
 import { WorkflowTemplate, PaginatedResponse } from '@/lib/types';
-import { formatDate, parseApiError } from '@/lib/utils';
+import { formatDate, parseApiError, resolvePaginationTotal } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import { workflowTemplateMetaSchema, validate, type FieldErrors } from '@/lib/validation';
@@ -34,7 +34,7 @@ export default function WorkflowTemplatesPage() {
     const res = await workflowTemplatesApi.list({ page, per_page: PER_PAGE });
     const data = res.data?.data;
     const items = Array.isArray(data?.items) ? data.items : [];
-    return { items, total: typeof data?.total === 'number' ? data.total : items.length, page, per_page: PER_PAGE };
+    return { items, total: resolvePaginationTotal(data?.total, items, page, PER_PAGE), page, per_page: PER_PAGE };
   }, [page]);
 
   const { data, loading, error, reload } = useAsyncQuery(fetchTemplates, [page], EMPTY);

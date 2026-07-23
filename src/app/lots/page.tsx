@@ -12,7 +12,7 @@ import Input from '@/components/ui/Input';
 import { toast } from '@/components/ui/Toast';
 import { lotsApi } from '@/lib/api';
 import { Lot, PaginatedResponse } from '@/lib/types';
-import { formatDate, formatQty, STEP_LABELS, LOT_STATUS_LABELS } from '@/lib/utils';
+import { formatDate, formatQty, STEP_LABELS, LOT_STATUS_LABELS, resolvePaginationTotal } from '@/lib/utils';
 import { useAsyncQuery } from '@/lib/useAsync';
 import { Search } from 'lucide-react';
 
@@ -59,7 +59,7 @@ function LotsPageInner() {
     const res = await lotsApi.list(params);
     const data = res.data?.data;
     const items = Array.isArray(data?.items) ? data.items : [];
-    return { items, total: typeof data?.total === 'number' ? data.total : items.length, page, per_page: PER_PAGE };
+    return { items, total: resolvePaginationTotal(data?.total, items, page, PER_PAGE), page, per_page: PER_PAGE };
   }, [page, statusFilter, stepFilter, debouncedSearch]);
 
   const { data, loading, error, reload } = useAsyncQuery(fetchLots, [page, statusFilter, stepFilter, debouncedSearch], EMPTY);

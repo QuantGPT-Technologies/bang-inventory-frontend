@@ -27,6 +27,30 @@ export function formatQty(qty?: number, unit?: string): string {
   return unit ? `${formatted} ${unit}` : formatted;
 }
 
+/**
+ * Resolves the "total records" figure for a paginated list from an API response that's supposed
+ * to include one, without silently pretending there's only one page when it doesn't.
+ *
+ * The naive fallback (`total ?? items.length`) is wrong whenever the backend omits `total`: it
+ * makes `total` equal to the current page's own row count, so `Pagination` computes exactly one
+ * page and hides Prev/Next even when more records exist server-side -- Next silently stops
+ * working past page 1 with no error shown. If the page came back full (`items.length ===
+ * perPage`), there's almost certainly at least one more page, so this reports an inflated total
+ * (`perPage * page + 1`) just large enough to keep Next enabled; if the page came back short, the
+ * list is genuinely exhausted and `page * perPage - (perPage - items.length)` is exact regardless
+ * of what the backend sent.
+ */
+export function resolvePaginationTotal(
+  rawTotal: unknown,
+  items: unknown[],
+  page: number,
+  perPage: number
+): number {
+  if (typeof rawTotal === 'number' && Number.isFinite(rawTotal) && rawTotal >= 0) return rawTotal;
+  const countSoFar = (page - 1) * perPage + items.length;
+  return items.length === perPage ? countSoFar + 1 : countSoFar;
+}
+
 /** Suggests a short code from a typed name (e.g. "Iron Powder" -> "IRON-POWDER"), for the
  *  code-field autofill on create forms. Always left editable -- this is a starting point, not a
  *  generated identifier the backend assigns, so collisions are the user's to resolve by editing. */

@@ -13,7 +13,7 @@ import Select from '@/components/ui/Select';
 import { toast } from '@/components/ui/Toast';
 import { consumablesApi, reportsApi } from '@/lib/api';
 import { Consumable, PaginatedResponse, StockLevelItem } from '@/lib/types';
-import { formatDate, formatQty, parseApiError, suggestCode } from '@/lib/utils';
+import { formatDate, formatQty, parseApiError, suggestCode, resolvePaginationTotal } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import { consumableSchema, stockAdjustSchema, validate, toNumber, type FieldErrors } from '@/lib/validation';
@@ -64,7 +64,7 @@ function ConsumablesPageInner() {
     const res = await consumablesApi.list(page, PER_PAGE, debouncedSearch || undefined);
     const data = res.data?.data;
     const items = Array.isArray(data?.items) ? data.items : [];
-    return { items, total: typeof data?.total === 'number' ? data.total : items.length, page, per_page: PER_PAGE };
+    return { items, total: resolvePaginationTotal(data?.total, items, page, PER_PAGE), page, per_page: PER_PAGE };
   }, [page, debouncedSearch]);
 
   const { data, loading, error, reload } = useAsyncQuery(fetchConsumables, [page, debouncedSearch], EMPTY);

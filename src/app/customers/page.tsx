@@ -14,7 +14,7 @@ import Textarea from '@/components/ui/Textarea';
 import { toast } from '@/components/ui/Toast';
 import { customersApi } from '@/lib/api';
 import { Customer, PaginatedResponse } from '@/lib/types';
-import { formatDate, parseApiError, suggestCode } from '@/lib/utils';
+import { formatDate, parseApiError, suggestCode, resolvePaginationTotal } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import { customerSchema, validate, type FieldErrors } from '@/lib/validation';
@@ -56,7 +56,7 @@ function CustomersPageInner() {
     const res = await customersApi.list(page, PER_PAGE, debouncedSearch || undefined);
     const data = res.data?.data;
     const items = Array.isArray(data?.items) ? data.items : [];
-    return { items, total: typeof data?.total === 'number' ? data.total : items.length, page, per_page: PER_PAGE };
+    return { items, total: resolvePaginationTotal(data?.total, items, page, PER_PAGE), page, per_page: PER_PAGE };
   }, [page, debouncedSearch]);
 
   const { data, loading, error, reload } = useAsyncQuery(fetchCustomers, [page, debouncedSearch], EMPTY);

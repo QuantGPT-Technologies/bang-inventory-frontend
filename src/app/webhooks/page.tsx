@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/Card';
-import { Table } from '@/components/ui/Table';
+import { Table, Pagination } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Modal } from '@/components/ui/Modal';
@@ -24,8 +24,13 @@ const EVENT_OPTIONS = [
   'lot.step_started', 'lot.step_completed', 'lot.step_skipped', 'lot.scrap_recorded', 'lot.completed',
 ];
 
+// GET /webhooks has no page/per_page params -- it returns the full list in one response. Paged
+// here on the client instead of guessing at query params the backend may not support.
+const PER_PAGE = 20;
+
 export default function WebhooksPage() {
   const { user } = useAuthStore();
+  const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
   const [showEdit, setShowEdit] = useState<Webhook | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Webhook | null>(null);
@@ -39,11 +44,20 @@ export default function WebhooksPage() {
     return Array.isArray(items) ? items : [];
   }, []);
 
-  const { data: webhooks, loading, error, reload } = useAsyncQuery<Webhook[]>(fetchWebhooks, [], []);
+  const { data: allWebhooks, loading, error, reload } = useAsyncQuery<Webhook[]>(fetchWebhooks, [], []);
+  const total = allWebhooks.length;
+  const webhooks = allWebhooks.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   useEffect(() => {
     if (error) toast.error(error.message);
   }, [error]);
+
+  // If a delete (or the list itself) shrinks below the current page's range, snap back rather
+  // than showing an empty page with working-looking Prev/Next above it.
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(total / PER_PAGE));
+    if (page > maxPage) setPage(maxPage);
+  }, [total, page]);
 
   const handleTest = async (w: Webhook) => {
     if (busyId) return;
@@ -156,13 +170,16 @@ export default function WebhooksPage() {
         {error && !loading ? (
           <ErrorState error={error} onRetry={reload} />
         ) : (
-          <Table
-            columns={columns}
-            data={webhooks}
-            keyExtractor={(w) => w.id}
-            loading={loading}
-            emptyMessage="No webhooks configured."
-          />
+          <>
+            <Table
+              columns={columns}
+              data={webhooks}
+              keyExtractor={(w) => w.id}
+              loading={loading}
+              emptyMessage="No webhooks configured."
+            />
+            <Pagination page={page} total={total} perPage={PER_PAGE} onChange={setPage} />
+          </>
         )}
       </Card>
 

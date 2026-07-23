@@ -15,7 +15,7 @@ import Textarea from '@/components/ui/Textarea';
 import { toast } from '@/components/ui/Toast';
 import { batchesApi, rawMaterialsApi } from '@/lib/api';
 import { Batch, RawMaterial, PaginatedResponse } from '@/lib/types';
-import { formatDate, formatQty, BATCH_STATUS_LABELS, parseApiError } from '@/lib/utils';
+import { formatDate, formatQty, BATCH_STATUS_LABELS, parseApiError, resolvePaginationTotal } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import { createBatchSchema, validate, toNumber, type FieldErrors } from '@/lib/validation';
@@ -91,7 +91,7 @@ function BatchesPageInner() {
     const res = await batchesApi.list(params);
     const data = res.data?.data;
     const items = Array.isArray(data?.items) ? data.items : [];
-    return { items, total: typeof data?.total === 'number' ? data.total : items.length, page, per_page: PER_PAGE };
+    return { items, total: resolvePaginationTotal(data?.total, items, page, PER_PAGE), page, per_page: PER_PAGE };
   }, [page, statusFilter, debouncedSearch]);
 
   const { data, loading, error, reload } = useAsyncQuery(fetchBatches, [page, statusFilter, debouncedSearch], EMPTY);
