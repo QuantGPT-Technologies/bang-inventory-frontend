@@ -11,6 +11,11 @@ import { Factory, Layers, AlertTriangle, TrendingUp, RefreshCw } from 'lucide-re
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import { TaskQueue } from '@/components/dashboard/TaskQueue';
+import { capList } from '@/lib/capList';
+
+/** The Recent Batches / Active Lots cards sit in a fixed max-h-64 (256px) box below the flexible
+ *  TaskQueue -- capped to what reliably fits an ~64px row under a ~50px title bar there. */
+const RECENT_ACTIVITY_MAX_ROWS = 3;
 
 // Poll the dashboard's own load() this often while the page stays mounted -- background refresh,
 // not a user-visible loading state (see the isInitialLoad-style guard on `loading` below).
@@ -112,13 +117,15 @@ export default function DashboardPage() {
 
       {/* The primary content: every actionable workflow step across the whole plant, in one
           place -- this is the "what do I do next" answer the app didn't have before. Everything
-          below (stats, recent activity) is secondary/browse-oriented context. */}
-      <div className="mb-6">
+          below (stats, recent activity) is secondary/browse-oriented context. This is the one
+          region that flexes to fill whatever height is left after the fixed-height blocks below
+          it, so the whole page fits the viewport without scrolling. */}
+      <div className="flex-1 min-h-0 flex flex-col mb-4">
         <TaskQueue />
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="flex-shrink-0 grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
         <Link href="/batches" className="block rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]">
           <StatCard
             label="Batches Running"
@@ -148,7 +155,7 @@ export default function DashboardPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="flex-shrink-0 grid grid-cols-1 lg:grid-cols-2 gap-4 max-h-64">
         {/* Recent Batches */}
         <Card
           title="Recent Batches"
@@ -158,6 +165,7 @@ export default function DashboardPage() {
             </Link>
           }
           noPadding
+          className="overflow-hidden"
         >
           {isInitialLoad ? (
             <div className="p-5 text-center text-base text-[var(--ink-muted)]">Loading…</div>
@@ -165,7 +173,7 @@ export default function DashboardPage() {
             <div className="p-5 text-center text-base text-[var(--ink-muted)] italic">No batches yet.</div>
           ) : (
             <div className="divide-y divide-[var(--border)]">
-              {recentBatches.map((b) => (
+              {capList(recentBatches, RECENT_ACTIVITY_MAX_ROWS).visible.map((b) => (
                 <Link
                   key={b.id}
                   href={`/batches/${b.id}`}
@@ -197,6 +205,7 @@ export default function DashboardPage() {
             </Link>
           }
           noPadding
+          className="overflow-hidden"
         >
           {isInitialLoad ? (
             <div className="p-5 text-center text-base text-[var(--ink-muted)]">Loading…</div>
@@ -204,7 +213,7 @@ export default function DashboardPage() {
             <div className="p-5 text-center text-base text-[var(--ink-muted)] italic">No active lots.</div>
           ) : (
             <div className="divide-y divide-[var(--border)]">
-              {activeLots.map((l) => (
+              {capList(activeLots, RECENT_ACTIVITY_MAX_ROWS).visible.map((l) => (
                 <Link
                   key={l.id}
                   href={`/lots/${l.id}`}

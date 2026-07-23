@@ -6,14 +6,18 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
   subtitle?: string;
   action?: React.ReactNode;
   noPadding?: boolean;
+  /** Fills the remaining height of its flex parent instead of sizing to content -- for a Card
+   *  that hosts a Table/list which should stretch to fill the viewport rather than grow it. */
+  fill?: boolean;
 }
 
-export function Card({ className, title, subtitle, action, noPadding, children, ...props }: CardProps) {
+export function Card({ className, title, subtitle, action, noPadding, fill, children, ...props }: CardProps) {
   return (
     <div
       className={cn(
         'bg-[var(--paper-raised)] border border-[var(--border)] rounded-2xl',
         'shadow-[0_1px_4px_var(--shadow)]',
+        fill && 'flex-1 min-h-0 flex flex-col',
         className
       )}
       {...props}
@@ -33,7 +37,7 @@ export function Card({ className, title, subtitle, action, noPadding, children, 
           {action && <div className="flex-shrink-0">{action}</div>}
         </div>
       )}
-      <div className={cn(!noPadding && 'p-5')}>{children}</div>
+      <div className={cn(!noPadding && 'p-5', fill && 'flex-1 min-h-0 flex flex-col')}>{children}</div>
     </div>
   );
 }

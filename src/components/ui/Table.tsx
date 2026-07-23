@@ -1,5 +1,11 @@
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { RefObject } from 'react';
+
+/** Desktop `<tr>` height: `py-3.5` (14px×2) + ~24px line-height + 1px border ≈ 53px. */
+export const TABLE_ROW_HEIGHT_PX = 53;
+/** Mobile stacked-card row: `py-4` (16px×2) + title line + wrapped label/value pairs ≈ 84px. */
+export const TABLE_CARD_ROW_HEIGHT_PX = 84;
 
 interface Column<T> {
   key: string;
@@ -22,6 +28,9 @@ interface TableProps<T> {
   onRowClick?: (row: T) => void;
   emptyMessage?: string;
   loading?: boolean;
+  /** Attach to measure available height for `useFitRowCount` -- wraps every render branch
+   *  (loading/empty/populated) so measurement stays live regardless of which one is showing. */
+  bodyRef?: RefObject<HTMLDivElement | null>;
 }
 
 // Below `md` (768px, small-tablet-portrait and phones) every list page in the app was pure
@@ -37,6 +46,7 @@ export function Table<T>({
   onRowClick,
   emptyMessage = 'No records found.',
   loading,
+  bodyRef,
 }: TableProps<T>) {
   // Only the FIRST load (no rows yet) shows the bare "Loading…" placeholder -- a reload after a
   // filter/search change or a background refresh keeps the existing rows visible (just dimmed),
@@ -49,16 +59,16 @@ export function Table<T>({
     col.render ? col.render(row) : String((row as Record<string, unknown>)[col.key] ?? '—');
 
   if (isInitialLoad) {
-    return <div className="text-center py-14 text-[var(--ink-muted)] text-base">Loading…</div>;
+    return <div ref={bodyRef} className="flex-1 min-h-0 flex items-center justify-center text-[var(--ink-muted)] text-base">Loading…</div>;
   }
   if (data.length === 0) {
-    return <div className="text-center py-14 text-[var(--ink-muted)] text-base italic">{emptyMessage}</div>;
+    return <div ref={bodyRef} className="flex-1 min-h-0 flex items-center justify-center text-[var(--ink-muted)] text-base italic">{emptyMessage}</div>;
   }
 
   return (
-    <div className={cn('transition-opacity duration-150', loading && data.length > 0 && 'opacity-50')}>
-      {/* Card list -- phones and small tablets */}
-      <div className="md:hidden divide-y divide-[var(--border)]">
+    <div ref={bodyRef} className={cn('flex-1 min-h-0 overflow-hidden transition-opacity duration-150', loading && data.length > 0 && 'opacity-50')}>
+      {/* Card list -- phones and small tablets. Scrolls internally, same as the desktop table. */}
+      <div className="md:hidden h-full overflow-y-auto divide-y divide-[var(--border)]">
         {data.map((row) => (
           <div
             key={keyExtractor(row)}
@@ -86,10 +96,12 @@ export function Table<T>({
         ))}
       </div>
 
-      {/* Full table -- md and above */}
-      <div className="hidden md:block overflow-x-auto">
-        <table className="w-full text-base">
-          <thead>
+      {/* Full table -- md and above. The rows scroll internally (overflow-y-auto) while the
+          header stays pinned via `sticky top-0` -- Pagination lives outside this scrollable
+          region entirely (a flex sibling below it in every caller), so it's pinned for free. */}
+      <div className="hidden md:block h-full overflow-y-auto overflow-x-hidden">
+        <table className="w-full text-base table-fixed">
+          <thead className="sticky top-0 z-10">
             <tr className="border-b-2 border-[var(--border)] bg-[var(--paper-sunken)]">
               {columns.map((col) => (
                 <th
@@ -144,29 +156,31 @@ export function Pagination({
   onChange: (p: number) => void;
 }) {
   const totalPages = Math.ceil(total / perPage);
-  if (totalPages <= 1) return null;
+  if (total === 0) return null;
 
   return (
     <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border)] text-sm font-semibold text-[var(--ink-muted)]">
       <span>
         {(page - 1) * perPage + 1}–{Math.min(page * perPage, total)} of {total}
       </span>
-      <div className="flex gap-2">
-        <button
-          disabled={page === 1}
-          onClick={() => onChange(page - 1)}
-          className="px-4 min-h-11 rounded-lg border-2 border-[var(--border-strong)] disabled:opacity-40 hover:bg-[var(--paper-sunken)] transition-colors text-[var(--ink)]"
-        >
-          ‹ Prev
-        </button>
-        <button
-          disabled={page === totalPages}
-          onClick={() => onChange(page + 1)}
-          className="px-4 min-h-11 rounded-lg border-2 border-[var(--border-strong)] disabled:opacity-40 hover:bg-[var(--paper-sunken)] transition-colors text-[var(--ink)]"
-        >
-          Next ›
-        </button>
-      </div>
+      {totalPages > 1 && (
+        <div className="flex gap-2">
+          <button
+            disabled={page === 1}
+            onClick={() => onChange(page - 1)}
+            className="px-4 min-h-11 rounded-lg border-2 border-[var(--border-strong)] disabled:opacity-40 hover:bg-[var(--paper-sunken)] transition-colors text-[var(--ink)]"
+          >
+            ‹ Prev
+          </button>
+          <button
+            disabled={page === totalPages}
+            onClick={() => onChange(page + 1)}
+            className="px-4 min-h-11 rounded-lg border-2 border-[var(--border-strong)] disabled:opacity-40 hover:bg-[var(--paper-sunken)] transition-colors text-[var(--ink)]"
+          >
+            Next ›
+          </button>
+        </div>
+      )}
     </div>
   );
 }

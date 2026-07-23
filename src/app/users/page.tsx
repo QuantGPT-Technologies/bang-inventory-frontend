@@ -1,9 +1,9 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/Card';
-import { Table, Pagination } from '@/components/ui/Table';
+import { Table, Pagination, TABLE_ROW_HEIGHT_PX, TABLE_CARD_ROW_HEIGHT_PX } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Modal } from '@/components/ui/Modal';
@@ -19,10 +19,12 @@ import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import { createUserSchema, ROLES, validate, type FieldErrors } from '@/lib/validation';
 import { useAsyncQuery } from '@/lib/useAsync';
+import { useFitRowCount } from '@/lib/useFitRowCount';
+import { useMediaQuery } from '@/lib/useMediaQuery';
 import { Plus, Ban, CheckCircle2 } from 'lucide-react';
 
-const PER_PAGE = 20;
-const EMPTY: PaginatedResponse<User> = { items: [], total: 0, page: 1, per_page: PER_PAGE };
+const INITIAL_PER_PAGE = 20;
+const EMPTY: PaginatedResponse<User> = { items: [], total: 0, page: 1, per_page: INITIAL_PER_PAGE };
 
 export default function UsersPage() {
   const { user: currentUser } = useAuthStore();
@@ -33,14 +35,26 @@ export default function UsersPage() {
 
   const canManage = canAccess(currentUser, 'users', 'crud');
 
+  const tableBodyRef = useRef<HTMLDivElement>(null);
+  const isMobile = useMediaQuery('(max-width: 767px)');
+  const perPage = useFitRowCount(tableBodyRef, isMobile ? TABLE_CARD_ROW_HEIGHT_PX : TABLE_ROW_HEIGHT_PX, 5, 100, INITIAL_PER_PAGE);
+
+  // A window resize can change how many rows fit -- reset to page 1 so `page` never points past
+  // the new `totalPages` (skips the very first render so it doesn't fight the initial fetch).
+  const isFirstPerPage = useRef(true);
+  useEffect(() => {
+    if (isFirstPerPage.current) { isFirstPerPage.current = false; return; }
+    setPage(1);
+  }, [perPage]);
+
   const fetchUsers = useCallback(async () => {
-    const res = await usersApi.list(page, PER_PAGE);
+    const res = await usersApi.list(page, perPage);
     const data = res.data?.data;
     const items = Array.isArray(data?.items) ? data.items : [];
-    return { items, total: resolvePaginationTotal(data?.total, items, page, PER_PAGE), page, per_page: PER_PAGE };
-  }, [page]);
+    return { items, total: resolvePaginationTotal(data?.total, items, page, perPage), page, per_page: perPage };
+  }, [page, perPage]);
 
-  const { data, loading, error, reload } = useAsyncQuery(fetchUsers, [page], EMPTY);
+  const { data, loading, error, reload } = useAsyncQuery(fetchUsers, [page, perPage], EMPTY);
   const users = data.items;
   const total = data.total;
 
@@ -78,8 +92,12 @@ export default function UsersPage() {
   };
 
   const columns = [
-    { key: 'name', header: 'Name', primary: true, render: (u: User) => <span className="font-bold">{u.name}</span> },
-    { key: 'email', header: 'Email', render: (u: User) => u.email },
+    { key: 'name', header: 'Name', primary: true, render: (u: User) => (
+      <div className="flex flex-col">
+        <span className="font-bold">{u.name}</span>
+        <span className="text-sm text-[var(--ink-muted)] font-normal">{u.email}</span>
+      </div>
+    ) },
     {
       key: 'role',
       header: 'Role',
@@ -89,10 +107,12 @@ export default function UsersPage() {
       key: 'is_active',
       header: 'Status',
       render: (u: User) => (
-        <Badge variant={u.is_active ? 'success' : 'muted'}>{u.is_active ? 'Active' : 'Inactive'}</Badge>
+        <div className="flex flex-col gap-1">
+          <Badge variant={u.is_active ? 'success' : 'muted'}>{u.is_active ? 'Active' : 'Inactive'}</Badge>
+          <span className="text-sm text-[var(--ink-muted)]">{u.last_login_at ? `Last in ${new Date(u.last_login_at).toLocaleDateString()}` : 'Never logged in'}</span>
+        </div>
       ),
     },
-    { key: 'last_login_at', header: 'Last Login', render: (u: User) => u.last_login_at ? new Date(u.last_login_at).toLocaleString() : 'Never' },
     { key: 'created_at', header: 'Created', hideInCard: true, render: (u: User) => formatDate(u.created_at) },
     ...(canManage
       ? [
@@ -136,7 +156,7 @@ export default function UsersPage() {
         }
       />
 
-      <Card noPadding>
+      <Card noPadding fill>
         {error && !loading ? (
           <ErrorState error={error} onRetry={reload} />
         ) : (
@@ -147,8 +167,9 @@ export default function UsersPage() {
               keyExtractor={(u) => u.id}
               loading={loading}
               emptyMessage="No users found."
+              bodyRef={tableBodyRef}
             />
-            <Pagination page={page} total={total} perPage={PER_PAGE} onChange={setPage} />
+            <Pagination page={page} total={total} perPage={perPage} onChange={setPage} />
           </>
         )}
       </Card>

@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/Card';
+import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { ErrorState } from '@/components/ui/ErrorState';
 import Button from '@/components/ui/Button';
@@ -153,30 +154,20 @@ export default function SKUDetailPage() {
           ) : !sku.materials?.length ? (
             <p className="text-base text-[var(--ink-muted)] italic">Not set yet — nothing added to show what this product is made from.</p>
           ) : (
-            <table className="w-full text-base">
-              <thead>
-                <tr className="border-b border-[var(--border)]">
-                  <th className="text-left py-2 text-sm font-bold uppercase tracking-wide text-[var(--ink-muted)]">Raw Material</th>
-                  <th className="text-right py-2 text-sm font-bold uppercase tracking-wide text-[var(--ink-muted)]">Ratio</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sku.materials.map((m, i) => (
-                  <tr key={i} className="border-b border-[var(--border)] last:border-0">
-                    <td className="py-2.5">{m.raw_material_name || `Material #${m.raw_material_id}`}</td>
-                    <td className="py-2.5 text-right font-mono">{m.ratio_percent.toFixed(1)}%</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <td className="pt-2.5 text-sm font-bold text-[var(--ink-muted)]">Total</td>
-                  <td className="pt-2.5 text-right font-mono text-sm font-bold">
-                    {sku.materials.reduce((s, m) => s + m.ratio_percent, 0).toFixed(1)}%
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+            <div className="-mx-5">
+              <Table
+                columns={[
+                  { key: 'material', header: 'Raw Material', primary: true, render: (m) => m.raw_material_name || `Material #${m.raw_material_id}` },
+                  { key: 'ratio', header: 'Ratio', className: 'text-right font-mono', headerClassName: 'text-right', render: (m) => `${m.ratio_percent.toFixed(1)}%` },
+                ]}
+                data={sku.materials}
+                keyExtractor={(m) => m.raw_material_id}
+              />
+              <div className="flex items-center justify-between px-4 py-2.5 text-sm font-bold text-[var(--ink-muted)]">
+                <span>Total</span>
+                <span className="font-mono">{sku.materials.reduce((s, m) => s + m.ratio_percent, 0).toFixed(1)}%</span>
+              </div>
+            </div>
           )}
         </Card>
       </div>

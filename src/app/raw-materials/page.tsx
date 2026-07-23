@@ -1,9 +1,9 @@
 'use client';
-import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useEffect, useState, useCallback, useRef, Suspense } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/Card';
-import { Table, Pagination } from '@/components/ui/Table';
+import { Table, Pagination, TABLE_ROW_HEIGHT_PX, TABLE_CARD_ROW_HEIGHT_PX } from '@/components/ui/Table';
 import { Badge, stockStatusBadge } from '@/components/ui/Badge';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Modal } from '@/components/ui/Modal';
@@ -19,10 +19,12 @@ import { canAccess } from '@/lib/auth';
 import { rawMaterialSchema, stockAdjustSchema, validate, toNumber, type FieldErrors } from '@/lib/validation';
 import { useAsyncQuery } from '@/lib/useAsync';
 import { useUrlState } from '@/lib/useUrlState';
+import { useFitRowCount } from '@/lib/useFitRowCount';
+import { useMediaQuery } from '@/lib/useMediaQuery';
 import { Plus, TrendingUp, TrendingDown, Pencil, Search } from 'lucide-react';
 
-const PER_PAGE = 20;
-const EMPTY: PaginatedResponse<RawMaterial> = { items: [], total: 0, page: 1, per_page: PER_PAGE };
+const INITIAL_PER_PAGE = 20;
+const EMPTY: PaginatedResponse<RawMaterial> = { items: [], total: 0, page: 1, per_page: INITIAL_PER_PAGE };
 
 /** Canned reasons offered as one-tap chips above the Adjust Stock modal's Reason field -- the
  *  field itself is still freetext, this just covers the handful of reasons that account for
@@ -53,6 +55,10 @@ function RawMaterialsPageInner() {
   const canWrite = canAccess(user, 'raw_materials', 'write');
   const canStock = canAccess(user, 'raw_materials', 'stock');
 
+  const tableBodyRef = useRef<HTMLDivElement>(null);
+  const isMobile = useMediaQuery('(max-width: 767px)');
+  const perPage = useFitRowCount(tableBodyRef, isMobile ? TABLE_CARD_ROW_HEIGHT_PX : TABLE_ROW_HEIGHT_PX, 5, 100, INITIAL_PER_PAGE);
+
   // Debounced so typing a material name doesn't fire a request per keystroke -- see the same
   // pattern on the Batches/Lots list pages. The page reset lives in this same callback (not the
   // input's onChange) so it fires once, together with the debounced value.
@@ -61,14 +67,22 @@ function RawMaterialsPageInner() {
     return () => clearTimeout(t);
   }, [search]);
 
+  // A window resize can change how many rows fit -- reset to page 1 so `page` never points past
+  // the new `totalPages` (skips the very first render so it doesn't fight the initial fetch).
+  const isFirstPerPage = useRef(true);
+  useEffect(() => {
+    if (isFirstPerPage.current) { isFirstPerPage.current = false; return; }
+    setPage(1);
+  }, [perPage]);
+
   const fetchMaterials = useCallback(async () => {
-    const res = await rawMaterialsApi.list(page, PER_PAGE, debouncedSearch || undefined);
+    const res = await rawMaterialsApi.list(page, perPage, debouncedSearch || undefined);
     const data = res.data?.data;
     const items = Array.isArray(data?.items) ? data.items : [];
-    return { items, total: resolvePaginationTotal(data?.total, items, page, PER_PAGE), page, per_page: PER_PAGE };
-  }, [page, debouncedSearch]);
+    return { items, total: resolvePaginationTotal(data?.total, items, page, perPage), page, per_page: perPage };
+  }, [page, perPage, debouncedSearch]);
 
-  const { data, loading, error, reload } = useAsyncQuery(fetchMaterials, [page, debouncedSearch], EMPTY);
+  const { data, loading, error, reload } = useAsyncQuery(fetchMaterials, [page, perPage, debouncedSearch], EMPTY);
   const materials = data.items;
   const total = data.total;
 
@@ -92,8 +106,12 @@ function RawMaterialsPageInner() {
   }, []);
 
   const columns = [
-    { key: 'name', header: 'Name', primary: true, render: (r: RawMaterial) => <span className="font-medium">{r.name}</span> },
-    { key: 'short_code', header: 'Code', hideInCard: true, render: (r: RawMaterial) => r.short_code ? <span className="font-mono">{r.short_code}</span> : '—' },
+    { key: 'name', header: 'Name', primary: true, render: (r: RawMaterial) => (
+      <div className="flex flex-col">
+        <span className="font-medium">{r.name}</span>
+        {r.short_code && <span className="text-sm text-[var(--ink-muted)] font-mono">{r.short_code}</span>}
+      </div>
+    ) },
     { key: 'vendor_name', header: 'Vendor', render: (r: RawMaterial) => r.vendor_name || '—' },
     {
       key: 'current_stock',
@@ -145,7 +163,7 @@ function RawMaterialsPageInner() {
         }
       />
 
-      <Card noPadding>
+      <Card noPadding fill>
         <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border)] flex-wrap">
           <div className="relative w-64">
             <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--ink-muted)] pointer-events-none" />
@@ -168,8 +186,9 @@ function RawMaterialsPageInner() {
               keyExtractor={(r) => r.id}
               loading={loading}
               emptyMessage={search ? 'No raw materials match this search.' : 'No raw materials found.'}
+              bodyRef={tableBodyRef}
             />
-            <Pagination page={page} total={total} perPage={PER_PAGE} onChange={setPage} />
+            <Pagination page={page} total={total} perPage={perPage} onChange={setPage} />
           </>
         )}
       </Card>

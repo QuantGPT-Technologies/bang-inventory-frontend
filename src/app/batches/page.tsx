@@ -1,10 +1,10 @@
 'use client';
-import { useEffect, useState, useCallback, useMemo, Suspense } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/Card';
-import { Table, Pagination } from '@/components/ui/Table';
+import { Table, Pagination, TABLE_ROW_HEIGHT_PX, TABLE_CARD_ROW_HEIGHT_PX } from '@/components/ui/Table';
 import { Badge, batchStatusBadge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -21,10 +21,12 @@ import { canAccess } from '@/lib/auth';
 import { createBatchSchema, validate, toNumber, type FieldErrors } from '@/lib/validation';
 import { useAsyncQuery } from '@/lib/useAsync';
 import { useUrlState } from '@/lib/useUrlState';
+import { useFitRowCount } from '@/lib/useFitRowCount';
+import { useMediaQuery } from '@/lib/useMediaQuery';
 import { Plus, X, Search } from 'lucide-react';
 
-const PER_PAGE = 20;
-const EMPTY: PaginatedResponse<Batch> = { items: [], total: 0, page: 1, per_page: PER_PAGE };
+const INITIAL_PER_PAGE = 20;
+const EMPTY: PaginatedResponse<Batch> = { items: [], total: 0, page: 1, per_page: INITIAL_PER_PAGE };
 
 /** sessionStorage key used by batches/[id]/page.tsx's "Repeat this batch" shortcut to hand off
  * a prefill payload for the New Batch modal here -- kept as a shared constant so the two files
@@ -60,6 +62,10 @@ function BatchesPageInner() {
   const [rawMaterials, setRawMaterials] = useState<RawMaterial[]>([]);
   const [repeatPrefill, setRepeatPrefill] = useState<RepeatBatchPrefill | null>(null);
 
+  const tableBodyRef = useRef<HTMLDivElement>(null);
+  const isMobile = useMediaQuery('(max-width: 767px)');
+  const perPage = useFitRowCount(tableBodyRef, isMobile ? TABLE_CARD_ROW_HEIGHT_PX : TABLE_ROW_HEIGHT_PX, 5, 100, INITIAL_PER_PAGE);
+
   // "Repeat this batch" hand-off from batches/[id]/page.tsx: if a prefill payload is waiting in
   // sessionStorage, consume it once on mount and open the New Batch modal pre-populated with it.
   useEffect(() => {
@@ -84,17 +90,25 @@ function BatchesPageInner() {
     return () => clearTimeout(t);
   }, [search]);
 
+  // A window resize can change how many rows fit -- reset to page 1 so `page` never points past
+  // the new `totalPages` (skips the very first render so it doesn't fight the initial fetch).
+  const isFirstPerPage = useRef(true);
+  useEffect(() => {
+    if (isFirstPerPage.current) { isFirstPerPage.current = false; return; }
+    setPage(1);
+  }, [perPage]);
+
   const fetchBatches = useCallback(async () => {
-    const params: Record<string, unknown> = { page, per_page: PER_PAGE };
+    const params: Record<string, unknown> = { page, per_page: perPage };
     if (statusFilter) params.status = statusFilter;
     if (debouncedSearch) params.q = debouncedSearch;
     const res = await batchesApi.list(params);
     const data = res.data?.data;
     const items = Array.isArray(data?.items) ? data.items : [];
-    return { items, total: resolvePaginationTotal(data?.total, items, page, PER_PAGE), page, per_page: PER_PAGE };
-  }, [page, statusFilter, debouncedSearch]);
+    return { items, total: resolvePaginationTotal(data?.total, items, page, perPage), page, per_page: perPage };
+  }, [page, perPage, statusFilter, debouncedSearch]);
 
-  const { data, loading, error, reload } = useAsyncQuery(fetchBatches, [page, statusFilter, debouncedSearch], EMPTY);
+  const { data, loading, error, reload } = useAsyncQuery(fetchBatches, [page, perPage, statusFilter, debouncedSearch], EMPTY);
   const batches = data.items;
   const total = data.total;
 
@@ -157,7 +171,7 @@ function BatchesPageInner() {
         }
       />
 
-      <Card noPadding>
+      <Card noPadding fill>
         {/* Filters */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border)] flex-wrap">
           <div className="relative w-64">
@@ -192,8 +206,9 @@ function BatchesPageInner() {
               onRowClick={(r) => router.push(`/batches/${r.id}`)}
               loading={loading}
               emptyMessage={statusFilter ? 'No batches match this filter.' : 'No batches found. Create one to get started.'}
+              bodyRef={tableBodyRef}
             />
-            <Pagination page={page} total={total} perPage={PER_PAGE} onChange={setPage} />
+            <Pagination page={page} total={total} perPage={perPage} onChange={setPage} />
           </>
         )}
       </Card>

@@ -1,9 +1,9 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/Card';
-import { Table, Pagination } from '@/components/ui/Table';
+import { Table, Pagination, TABLE_ROW_HEIGHT_PX, TABLE_CARD_ROW_HEIGHT_PX } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Modal } from '@/components/ui/Modal';
@@ -17,6 +17,8 @@ import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import { webhookSchema, validate, type FieldErrors } from '@/lib/validation';
 import { useAsyncQuery } from '@/lib/useAsync';
+import { useFitRowCount } from '@/lib/useFitRowCount';
+import { useMediaQuery } from '@/lib/useMediaQuery';
 import { Plus, Play, Trash2, Edit } from 'lucide-react';
 
 const EVENT_OPTIONS = [
@@ -26,7 +28,7 @@ const EVENT_OPTIONS = [
 
 // GET /webhooks has no page/per_page params -- it returns the full list in one response. Paged
 // here on the client instead of guessing at query params the backend may not support.
-const PER_PAGE = 20;
+const INITIAL_PER_PAGE = 20;
 
 export default function WebhooksPage() {
   const { user } = useAuthStore();
@@ -38,6 +40,18 @@ export default function WebhooksPage() {
 
   const canManage = canAccess(user, 'webhooks', 'crud');
 
+  const tableBodyRef = useRef<HTMLDivElement>(null);
+  const isMobile = useMediaQuery('(max-width: 767px)');
+  const perPage = useFitRowCount(tableBodyRef, isMobile ? TABLE_CARD_ROW_HEIGHT_PX : TABLE_ROW_HEIGHT_PX, 5, 100, INITIAL_PER_PAGE);
+
+  // A window resize can change how many rows fit -- reset to page 1 so `page` never points past
+  // the new `totalPages` (skips the very first render so it doesn't fight the initial fetch).
+  const isFirstPerPage = useRef(true);
+  useEffect(() => {
+    if (isFirstPerPage.current) { isFirstPerPage.current = false; return; }
+    setPage(1);
+  }, [perPage]);
+
   const fetchWebhooks = useCallback(async () => {
     const res = await webhooksApi.list();
     const items = res.data?.data;
@@ -46,7 +60,7 @@ export default function WebhooksPage() {
 
   const { data: allWebhooks, loading, error, reload } = useAsyncQuery<Webhook[]>(fetchWebhooks, [], []);
   const total = allWebhooks.length;
-  const webhooks = allWebhooks.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const webhooks = allWebhooks.slice((page - 1) * perPage, page * perPage);
 
   useEffect(() => {
     if (error) toast.error(error.message);
@@ -55,9 +69,9 @@ export default function WebhooksPage() {
   // If a delete (or the list itself) shrinks below the current page's range, snap back rather
   // than showing an empty page with working-looking Prev/Next above it.
   useEffect(() => {
-    const maxPage = Math.max(1, Math.ceil(total / PER_PAGE));
+    const maxPage = Math.max(1, Math.ceil(total / perPage));
     if (page > maxPage) setPage(maxPage);
-  }, [total, page]);
+  }, [total, page, perPage]);
 
   const handleTest = async (w: Webhook) => {
     if (busyId) return;
@@ -166,7 +180,7 @@ export default function WebhooksPage() {
         }
       />
 
-      <Card noPadding>
+      <Card noPadding fill>
         {error && !loading ? (
           <ErrorState error={error} onRetry={reload} />
         ) : (
@@ -177,8 +191,9 @@ export default function WebhooksPage() {
               keyExtractor={(w) => w.id}
               loading={loading}
               emptyMessage="No webhooks configured."
+              bodyRef={tableBodyRef}
             />
-            <Pagination page={page} total={total} perPage={PER_PAGE} onChange={setPage} />
+            <Pagination page={page} total={total} perPage={perPage} onChange={setPage} />
           </>
         )}
       </Card>

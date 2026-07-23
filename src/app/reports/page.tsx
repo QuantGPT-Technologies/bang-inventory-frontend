@@ -1,10 +1,10 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, StatCard } from '@/components/ui/Card';
-import { Table } from '@/components/ui/Table';
+import { Table, TABLE_ROW_HEIGHT_PX } from '@/components/ui/Table';
 import { Badge, stockStatusBadge } from '@/components/ui/Badge';
 import { ErrorState } from '@/components/ui/ErrorState';
 import Input from '@/components/ui/Input';
@@ -14,8 +14,16 @@ import { cn, formatQty, parseApiError, type ApiErrorInfo } from '@/lib/utils';
 import { StockLevelItem, StockLevels, YieldSummary, YieldSummaryRow } from '@/lib/types';
 import { BarChart, type BarChartRow } from '@/components/charts/BarChart';
 import { LineChart, type LineChartPoint } from '@/components/charts/LineChart';
+import { useFitRowCount } from '@/lib/useFitRowCount';
 import { stepLabel } from './shared';
 import { Factory, Layers, TrendingUp, AlertTriangle, PackageX, ArrowRight } from 'lucide-react';
+
+type ReportsTab = 'yield' | 'stock' | 'trends';
+const TABS: { key: ReportsTab; label: string }[] = [
+  { key: 'yield', label: 'Yield' },
+  { key: 'stock', label: 'Stock Levels' },
+  { key: 'trends', label: 'Trends' },
+];
 
 const TREND_PRESETS = [
   { label: 'Last 7 days', days: 7 },
@@ -47,6 +55,12 @@ export default function ReportsPage() {
   const [dateTo, setDateTo] = useState('');
   const [dateError, setDateError] = useState('');
   const [yieldGroupBy, setYieldGroupBy] = useState<'step' | 'sku'>('step');
+  const [tab, setTab] = useState<ReportsTab>('yield');
+
+  const yieldTableRef = useRef<HTMLDivElement>(null);
+  const yieldRowCount = useFitRowCount(yieldTableRef, TABLE_ROW_HEIGHT_PX, 3, 100, 10);
+  const stockTableRef = useRef<HTMLDivElement>(null);
+  const stockRowCount = useFitRowCount(stockTableRef, TABLE_ROW_HEIGHT_PX, 3, 100, 10);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ApiErrorInfo | null>(null);
@@ -138,6 +152,11 @@ export default function ReportsPage() {
   }));
   const scrapPoints: LineChartPoint[] = trendDays.map((d) => ({ x: d.date, values: { scrap: d.scrap_kg } }));
 
+  const yieldVisible = yieldData.rows.slice(0, yieldRowCount);
+  const yieldHiddenCount = yieldData.rows.length - yieldVisible.length;
+  const stockVisible = stockRows.slice(0, stockRowCount);
+  const stockHiddenCount = stockRows.length - stockVisible.length;
+
   return (
     <AppShell>
       <PageHeader
@@ -168,8 +187,8 @@ export default function ReportsPage() {
       )}
 
       {/* KPI row -- "as of now" tiles don't move with the date range above; "selected period"
-          ones do. */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+          ones do. Pinned above the tabs, always visible regardless of which tab is active. */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
         <StatCard label="Open Batches" sub="as of now" value={loading ? '—' : (production.active_batches ?? '—')} icon={<Factory size={22} />} />
         <StatCard label="Open Lots" sub="as of now" value={loading ? '—' : (production.active_lots ?? '—')} icon={<Layers size={22} />} />
         <StatCard
@@ -189,109 +208,149 @@ export default function ReportsPage() {
         <StatCard label="Completed Today" sub="as of now" value={loading ? '—' : (production.completed_today ?? '—')} icon={<TrendingUp size={22} />} />
       </div>
 
-      {/* Yield by step/SKU */}
-      <Card
-        title="Yield"
-        subtitle="Actual output ÷ actual input across completed production steps"
-        action={
-          <div className="flex gap-2">
-            <button
-              onClick={() => setYieldGroupBy('step')}
-              className={cn(
-                'text-sm font-bold px-3.5 min-h-11 rounded-lg border-2 transition-colors',
-                yieldGroupBy === 'step'
-                  ? 'bg-[var(--accent)] text-white border-[var(--accent)]'
-                  : 'border-[var(--border-strong)] text-[var(--ink-light)] hover:bg-[var(--paper-sunken)]'
-              )}
-            >
-              By Step
-            </button>
-            <button
-              onClick={() => setYieldGroupBy('sku')}
-              className={cn(
-                'text-sm font-bold px-3.5 min-h-11 rounded-lg border-2 transition-colors',
-                yieldGroupBy === 'sku'
-                  ? 'bg-[var(--accent)] text-white border-[var(--accent)]'
-                  : 'border-[var(--border-strong)] text-[var(--ink-light)] hover:bg-[var(--paper-sunken)]'
-              )}
-            >
-              By SKU
-            </button>
-          </div>
-        }
-        className="mb-4"
-      >
-        <BarChart
-          rows={yieldRows}
-          series={[{ key: 'yield', label: 'Yield %' }]}
-          formatValue={(v) => `${v.toFixed(1)}%`}
-          emptyMessage="No completed production steps in the selected range."
-        />
-        {yieldData.rows.length > 0 && (
-          <div className="mt-4">
+      {/* Tab strip -- Yield / Stock Levels / Trends each fill the remaining screen height below
+          this, one at a time, so no section has to compete for space with the others. */}
+      <div className="flex gap-2 mb-4">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={cn(
+              'text-sm font-bold px-3.5 min-h-11 rounded-lg border-2 transition-colors',
+              tab === t.key
+                ? 'bg-[var(--accent)] text-white border-[var(--accent)]'
+                : 'border-[var(--border-strong)] text-[var(--ink-light)] hover:bg-[var(--paper-sunken)]'
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+        {tab === 'yield' && (
+          <Card
+            title="Yield"
+            subtitle="Actual output ÷ actual input across completed production steps"
+            fill
+            action={
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setYieldGroupBy('step')}
+                  className={cn(
+                    'text-sm font-bold px-3.5 min-h-11 rounded-lg border-2 transition-colors',
+                    yieldGroupBy === 'step'
+                      ? 'bg-[var(--accent)] text-white border-[var(--accent)]'
+                      : 'border-[var(--border-strong)] text-[var(--ink-light)] hover:bg-[var(--paper-sunken)]'
+                  )}
+                >
+                  By Step
+                </button>
+                <button
+                  onClick={() => setYieldGroupBy('sku')}
+                  className={cn(
+                    'text-sm font-bold px-3.5 min-h-11 rounded-lg border-2 transition-colors',
+                    yieldGroupBy === 'sku'
+                      ? 'bg-[var(--accent)] text-white border-[var(--accent)]'
+                      : 'border-[var(--border-strong)] text-[var(--ink-light)] hover:bg-[var(--paper-sunken)]'
+                  )}
+                >
+                  By SKU
+                </button>
+              </div>
+            }
+          >
+            <BarChart
+              rows={yieldRows}
+              series={[{ key: 'yield', label: 'Yield %' }]}
+              formatValue={(v) => `${v.toFixed(1)}%`}
+              emptyMessage="No completed production steps in the selected range."
+            />
+            {yieldData.rows.length > 0 && (
+              <div className="mt-4 flex-1 min-h-0 flex flex-col">
+                <Table
+                  columns={[
+                    { key: 'key', header: yieldGroupBy === 'step' ? 'Step' : 'SKU', render: (r: YieldSummaryRow) => yieldRowLabel(r) },
+                    { key: 'total_input_qty', header: 'Input', render: (r: YieldSummaryRow) => <span className="font-mono">{formatQty(r.total_input_qty)}</span> },
+                    { key: 'total_output_qty', header: 'Output', render: (r: YieldSummaryRow) => <span className="font-mono">{formatQty(r.total_output_qty)}</span> },
+                    { key: 'yield_pct', header: 'Yield', render: (r: YieldSummaryRow) => <span className="font-mono font-medium">{r.yield_pct.toFixed(1)}%</span> },
+                    { key: 'instance_count', header: 'Instances', render: (r: YieldSummaryRow) => <span className="font-mono text-[var(--ink-muted)]">{r.instance_count}</span> },
+                  ]}
+                  data={yieldVisible}
+                  keyExtractor={(r) => r.key}
+                  bodyRef={yieldTableRef}
+                />
+                {yieldHiddenCount > 0 && (
+                  <p className="text-sm text-[var(--ink-muted)] pt-2">Showing top {yieldVisible.length} of {yieldData.rows.length}.</p>
+                )}
+              </div>
+            )}
+          </Card>
+        )}
+
+        {tab === 'stock' && (
+          <Card
+            title="Stock Levels"
+            subtitle={
+              stock
+                ? `${stock.summary.out_of_stock_count} out of stock, ${stock.summary.low_stock_count} running low · based on the trailing ${stock.usage_window_days} days of usage`
+                : 'as of now'
+            }
+            noPadding
+            fill
+          >
             <Table
               columns={[
-                { key: 'key', header: yieldGroupBy === 'step' ? 'Step' : 'SKU', render: (r: YieldSummaryRow) => yieldRowLabel(r) },
-                { key: 'total_input_qty', header: 'Input', render: (r: YieldSummaryRow) => <span className="font-mono">{formatQty(r.total_input_qty)}</span> },
-                { key: 'total_output_qty', header: 'Output', render: (r: YieldSummaryRow) => <span className="font-mono">{formatQty(r.total_output_qty)}</span> },
-                { key: 'yield_pct', header: 'Yield', render: (r: YieldSummaryRow) => <span className="font-mono font-medium">{r.yield_pct.toFixed(1)}%</span> },
-                { key: 'instance_count', header: 'Instances', render: (r: YieldSummaryRow) => <span className="font-mono text-[var(--ink-muted)]">{r.instance_count}</span> },
+                { key: 'category', header: 'Type', render: (r: (typeof stockRows)[number]) => <span className="text-[var(--ink-muted)]">{r.category}</span> },
+                { key: 'name', header: 'Item', render: (r: (typeof stockRows)[number]) => <span className="font-medium">{r.name}</span> },
+                { key: 'current_stock', header: 'On Hand', render: (r: (typeof stockRows)[number]) => <span className="font-mono">{formatQty(r.current_stock, r.unit)}</span> },
+                {
+                  key: 'days_of_cover',
+                  header: 'Days of Cover',
+                  render: (r: (typeof stockRows)[number]) => (
+                    <span className="font-mono text-[var(--ink-muted)]">{r.days_of_cover != null ? r.days_of_cover.toFixed(1) : '—'}</span>
+                  ),
+                },
+                { key: 'status', header: 'Status', render: (r: (typeof stockRows)[number]) => <Badge variant={stockStatusBadge(r.status)}>{r.status}</Badge> },
               ]}
-              data={yieldData.rows}
-              keyExtractor={(r) => r.key}
+              data={stockVisible}
+              keyExtractor={(r) => `${r.category}-${r.id}`}
+              loading={loading}
+              emptyMessage="No stock data available."
+              bodyRef={stockTableRef}
             />
+            {stockHiddenCount > 0 && (
+              <p className="text-sm text-[var(--ink-muted)] px-4 py-2 border-t border-[var(--border)]">
+                Showing the {stockVisible.length} most urgent of {stockRows.length} — see the full list under Raw Materials, Consumables, or Products.
+              </p>
+            )}
+          </Card>
+        )}
+
+        {tab === 'trends' && (
+          <div className="flex-1 min-h-0 overflow-hidden grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card title="Scrap Trend" subtitle="Weight-denominated (kg), per day" fill>
+              <div className="flex-1 min-h-0">
+                <LineChart points={scrapPoints} series={[{ key: 'scrap', label: 'Scrap (kg)' }]} formatValue={(v) => formatQty(v, 'kg')} />
+              </div>
+            </Card>
+            <Card title="Production Trend" subtitle="Batches created and lots completed, per day" fill>
+              <div className="flex-1 min-h-0">
+                <LineChart
+                  points={activityPoints}
+                  series={[
+                    { key: 'batches', label: 'Batches Created' },
+                    { key: 'lots', label: 'Lots Completed' },
+                  ]}
+                  formatValue={(v) => v.toLocaleString()}
+                />
+              </div>
+            </Card>
           </div>
         )}
-      </Card>
+      </div>
 
-      {/* Stock levels */}
-      <Card
-        title="Stock Levels"
-        subtitle={
-          stock
-            ? `${stock.summary.out_of_stock_count} out of stock, ${stock.summary.low_stock_count} running low · based on the trailing ${stock.usage_window_days} days of usage`
-            : 'as of now'
-        }
-        noPadding
-        className="mb-4"
-      >
-        <Table
-          columns={[
-            { key: 'category', header: 'Type', render: (r: (typeof stockRows)[number]) => <span className="text-[var(--ink-muted)]">{r.category}</span> },
-            { key: 'name', header: 'Item', render: (r: (typeof stockRows)[number]) => <span className="font-medium">{r.name}</span> },
-            { key: 'current_stock', header: 'On Hand', render: (r: (typeof stockRows)[number]) => <span className="font-mono">{formatQty(r.current_stock, r.unit)}</span> },
-            {
-              key: 'days_of_cover',
-              header: 'Days of Cover',
-              render: (r: (typeof stockRows)[number]) => (
-                <span className="font-mono text-[var(--ink-muted)]">{r.days_of_cover != null ? r.days_of_cover.toFixed(1) : '—'}</span>
-              ),
-            },
-            { key: 'status', header: 'Status', render: (r: (typeof stockRows)[number]) => <Badge variant={stockStatusBadge(r.status)}>{r.status}</Badge> },
-          ]}
-          data={stockRows}
-          keyExtractor={(r) => `${r.category}-${r.id}`}
-          loading={loading}
-          emptyMessage="No stock data available."
-        />
-      </Card>
-
-      {/* Trends */}
-      <Card title="Scrap Trend" subtitle="Weight-denominated (kg), per day" className="mb-4">
-        <LineChart points={scrapPoints} series={[{ key: 'scrap', label: 'Scrap (kg)' }]} formatValue={(v) => formatQty(v, 'kg')} />
-      </Card>
-      <Card title="Production Trend" subtitle="Batches created and lots completed, per day" className="mb-4">
-        <LineChart
-          points={activityPoints}
-          series={[
-            { key: 'batches', label: 'Batches Created' },
-            { key: 'lots', label: 'Lots Completed' },
-          ]}
-          formatValue={(v) => v.toLocaleString()}
-        />
-      </Card>
-
-      <div className="text-center pb-2">
+      <div className="text-center pt-3 flex-shrink-0">
         <Link href="/reports/detailed" className="text-base font-semibold text-[var(--accent)] hover:underline inline-flex items-center gap-1.5">
           View detailed reports <ArrowRight size={18} />
         </Link>

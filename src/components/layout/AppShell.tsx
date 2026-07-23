@@ -62,8 +62,8 @@ export function AppShell({ children, fullBleed = false }: { children: React.Reac
           </div>
           <ThemeToggle className="!px-2" />
         </div>
-        <main className={cn('flex-1 bg-[var(--paper-sunken)]', fullBleed ? 'overflow-hidden' : 'overflow-y-auto')}>
-          <div className={fullBleed ? 'h-full' : 'max-w-7xl mx-auto px-6 py-6'}>
+        <main className="flex-1 flex flex-col min-h-0 bg-[var(--paper-sunken)] overflow-hidden">
+          <div className={cn('flex-1 flex flex-col min-h-0', fullBleed ? 'h-full' : 'max-w-7xl w-full mx-auto px-6 py-6')}>
             {allowed ? children : <AccessDenied />}
           </div>
         </main>

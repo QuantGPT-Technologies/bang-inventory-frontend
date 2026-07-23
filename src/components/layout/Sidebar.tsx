@@ -107,7 +107,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       )}
       <aside
         className={cn(
-          'w-72 flex-shrink-0 bg-[var(--ink)] text-white flex flex-col h-screen',
+          'w-72 flex-shrink-0 bg-[var(--sidebar-bg)] text-white flex flex-col h-screen',
           'fixed inset-y-0 left-0 z-50 transition-transform duration-200 ease-out',
           'lg:sticky lg:top-0 lg:translate-x-0 lg:w-64',
           open ? 'translate-x-0' : '-translate-x-full'

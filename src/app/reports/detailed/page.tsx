@@ -1,9 +1,9 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/Card';
-import { Table } from '@/components/ui/Table';
+import { Table, TABLE_ROW_HEIGHT_PX } from '@/components/ui/Table';
 import { ErrorState } from '@/components/ui/ErrorState';
 import Select from '@/components/ui/Select';
 import Input from '@/components/ui/Input';
@@ -12,6 +12,8 @@ import { toast } from '@/components/ui/Toast';
 import { reportsApi } from '@/lib/api';
 import { formatQty, parseApiError, type ApiErrorInfo } from '@/lib/utils';
 import { BarChart } from '@/components/charts/BarChart';
+import { useFitRowCount } from '@/lib/useFitRowCount';
+import { capList } from '@/lib/capList';
 import { FileText } from 'lucide-react';
 import { stepLabel, groupByUnit } from '../shared';
 
@@ -109,17 +111,19 @@ export default function DetailedReportsPage() {
       />
       {dateError && <p className="text-sm font-semibold text-[var(--danger)] -mt-4 mb-4">{dateError}</p>}
 
-      {error ? (
-        <Card><ErrorState error={error} onRetry={runReport} /></Card>
-      ) : loading && !data ? (
-        <Card><div className="p-8 text-center text-base text-[var(--ink-muted)]">Loading report…</div></Card>
-      ) : (
-        <>
-          {reportType === 'material' && data && <MaterialUsage data={data} />}
-          {reportType === 'raw-material' && data && <RawMaterialUsage data={data} />}
-          {reportType === 'step' && data && <StepUsage data={data} />}
-        </>
-      )}
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+        {error ? (
+          <Card><ErrorState error={error} onRetry={runReport} /></Card>
+        ) : loading && !data ? (
+          <Card><div className="p-8 text-center text-base text-[var(--ink-muted)]">Loading report…</div></Card>
+        ) : (
+          <>
+            {reportType === 'material' && data && <MaterialUsage data={data} />}
+            {reportType === 'raw-material' && data && <RawMaterialUsage data={data} />}
+            {reportType === 'step' && data && <StepUsage data={data} />}
+          </>
+        )}
+      </div>
     </AppShell>
   );
 }
@@ -127,23 +131,31 @@ export default function DetailedReportsPage() {
 function MaterialUsage({ data }: { data: Record<string, unknown> }) {
   const rows = (data as { by_material?: { name: string; total_qty: number; unit: string }[] }).by_material || [];
   const groups = groupByUnit(rows);
+  // Distinct units are typically 2-4 (kg, g, L, pcs) in practice -- capped so a data set with
+  // unusually many distinct units still fits on screen, rather than growing the page unbounded.
+  const { visible: visibleGroups, hiddenCount } = capList(groups, 4);
 
   return (
-    <div className="space-y-4">
+    <div className="flex-1 min-h-0 overflow-hidden flex flex-col gap-4">
       {rows.length === 0 ? (
         <Card title="Material Usage">
           <p className="text-base text-[var(--ink-muted)] italic">No material usage data available for the selected range.</p>
         </Card>
       ) : (
-        groups.map(([unit, group]) => (
-          <Card key={unit} title={`Material Usage — ${unit}`}>
-            <BarChart
-              rows={group.map((r) => ({ category: r.name, values: { qty: r.total_qty } }))}
-              series={[{ key: 'qty', label: `Used (${unit})` }]}
-              formatValue={(v) => formatQty(v, unit)}
-            />
-          </Card>
-        ))
+        <>
+          {visibleGroups.map(([unit, group]) => (
+            <Card key={unit} title={`Material Usage — ${unit}`} className="flex-1 min-h-0" fill>
+              <BarChart
+                rows={group.map((r) => ({ category: r.name, values: { qty: r.total_qty } }))}
+                series={[{ key: 'qty', label: `Used (${unit})` }]}
+                formatValue={(v) => formatQty(v, unit)}
+              />
+            </Card>
+          ))}
+          {hiddenCount > 0 && (
+            <p className="text-sm text-[var(--ink-muted)] flex-shrink-0">+{hiddenCount} more unit group{hiddenCount === 1 ? '' : 's'} not shown</p>
+          )}
+        </>
       )}
     </div>
   );
@@ -152,49 +164,62 @@ function MaterialUsage({ data }: { data: Record<string, unknown> }) {
 function RawMaterialUsage({ data }: { data: Record<string, unknown> }) {
   const rows = (data as { by_material?: { name: string; unit: string; planned_qty: number; actual_qty: number; variance_qty: number }[] }).by_material || [];
   const groups = groupByUnit(rows);
+  const { visible: visibleGroups, hiddenCount } = capList(groups, 2);
+
+  const varianceTableRef = useRef<HTMLDivElement>(null);
+  const varianceRowCount = useFitRowCount(varianceTableRef, TABLE_ROW_HEIGHT_PX, 3, 100, 10);
+  const varianceVisible = rows.slice(0, varianceRowCount);
+  const varianceHiddenCount = rows.length - varianceVisible.length;
 
   return (
-    <div className="space-y-4">
+    <div className="flex-1 min-h-0 overflow-hidden flex flex-col gap-4">
       {rows.length === 0 ? (
         <Card title="Raw Material Usage">
           <p className="text-base text-[var(--ink-muted)] italic">No raw material usage data available for the selected range.</p>
         </Card>
       ) : (
-        groups.map(([unit, group]) => (
-          <Card key={unit} title={`Raw Material Usage — ${unit}`} subtitle="Blend-time planned vs. actual consumption">
-            <BarChart
-              rows={group.map((r) => ({ category: r.name, values: { planned: r.planned_qty, actual: r.actual_qty } }))}
-              series={[
-                { key: 'planned', label: 'Planned' },
-                { key: 'actual', label: 'Actual' },
+        <>
+          {visibleGroups.map(([unit, group]) => (
+            <Card key={unit} title={`Raw Material Usage — ${unit}`} subtitle="Blend-time planned vs. actual consumption" className="flex-shrink-0">
+              <BarChart
+                rows={group.map((r) => ({ category: r.name, values: { planned: r.planned_qty, actual: r.actual_qty } }))}
+                series={[
+                  { key: 'planned', label: 'Planned' },
+                  { key: 'actual', label: 'Actual' },
+                ]}
+                formatValue={(v) => formatQty(v, unit)}
+              />
+            </Card>
+          ))}
+          {hiddenCount > 0 && (
+            <p className="text-sm text-[var(--ink-muted)] flex-shrink-0">+{hiddenCount} more unit group{hiddenCount === 1 ? '' : 's'} not shown</p>
+          )}
+          <Card title="Variance — table" subtitle="Actual − planned; positive means more was used than planned" noPadding fill>
+            <Table
+              columns={[
+                { key: 'name', header: 'Material', render: (r: (typeof rows)[number]) => <span className="font-medium">{r.name}</span> },
+                { key: 'planned_qty', header: 'Planned', render: (r: (typeof rows)[number]) => <span className="font-mono">{formatQty(r.planned_qty, r.unit)}</span> },
+                { key: 'actual_qty', header: 'Actual', render: (r: (typeof rows)[number]) => <span className="font-mono">{formatQty(r.actual_qty, r.unit)}</span> },
+                {
+                  key: 'variance_qty',
+                  header: 'Variance',
+                  render: (r: (typeof rows)[number]) => (
+                    <span className={`font-mono font-semibold ${r.variance_qty > 0 ? 'text-[var(--warning)]' : r.variance_qty < 0 ? 'text-[var(--success)]' : ''}`}>
+                      {r.variance_qty > 0 ? '+' : ''}
+                      {formatQty(r.variance_qty, r.unit)}
+                    </span>
+                  ),
+                },
               ]}
-              formatValue={(v) => formatQty(v, unit)}
+              data={varianceVisible}
+              keyExtractor={(r) => r.name}
+              bodyRef={varianceTableRef}
             />
+            {varianceHiddenCount > 0 && (
+              <p className="text-sm text-[var(--ink-muted)] px-4 py-2 border-t border-[var(--border)]">+{varianceHiddenCount} more not shown</p>
+            )}
           </Card>
-        ))
-      )}
-      {rows.length > 0 && (
-        <Card title="Variance — table" subtitle="Actual − planned; positive means more was used than planned" noPadding>
-          <Table
-            columns={[
-              { key: 'name', header: 'Material', render: (r: (typeof rows)[number]) => <span className="font-medium">{r.name}</span> },
-              { key: 'planned_qty', header: 'Planned', render: (r: (typeof rows)[number]) => <span className="font-mono">{formatQty(r.planned_qty, r.unit)}</span> },
-              { key: 'actual_qty', header: 'Actual', render: (r: (typeof rows)[number]) => <span className="font-mono">{formatQty(r.actual_qty, r.unit)}</span> },
-              {
-                key: 'variance_qty',
-                header: 'Variance',
-                render: (r: (typeof rows)[number]) => (
-                  <span className={`font-mono font-semibold ${r.variance_qty > 0 ? 'text-[var(--warning)]' : r.variance_qty < 0 ? 'text-[var(--success)]' : ''}`}>
-                    {r.variance_qty > 0 ? '+' : ''}
-                    {formatQty(r.variance_qty, r.unit)}
-                  </span>
-                ),
-              },
-            ]}
-            data={rows}
-            keyExtractor={(r) => r.name}
-          />
-        </Card>
+        </>
       )}
     </div>
   );
@@ -207,9 +232,14 @@ function StepUsage({ data }: { data: Record<string, unknown> }) {
     s.consumables.map((c) => ({ step: stepLabel(s.step), name: c.name, unit: c.unit, total_qty: c.total_qty }))
   );
 
+  const consumablesTableRef = useRef<HTMLDivElement>(null);
+  const consumablesRowCount = useFitRowCount(consumablesTableRef, TABLE_ROW_HEIGHT_PX, 3, 100, 10);
+  const consumablesVisible = consumableRows.slice(0, consumablesRowCount);
+  const consumablesHiddenCount = consumableRows.length - consumablesVisible.length;
+
   return (
-    <div className="space-y-4">
-      <Card title="Completed Step-Instances" subtitle="Count of step executions completed in range">
+    <div className="flex-1 min-h-0 overflow-hidden flex flex-col gap-4">
+      <Card title="Completed Step-Instances" subtitle="Count of step executions completed in range" className="flex-shrink-0">
         <BarChart
           rows={steps.map((s) => ({ category: stepLabel(s.step), values: { count: s.completed_count } }))}
           series={[{ key: 'count', label: 'Completed' }]}
@@ -217,7 +247,7 @@ function StepUsage({ data }: { data: Record<string, unknown> }) {
           emptyMessage="No step activity in the selected range."
         />
       </Card>
-      <Card title="Scrap by Step" subtitle="Weight-denominated (kg)">
+      <Card title="Scrap by Step" subtitle="Weight-denominated (kg)" className="flex-shrink-0">
         <BarChart
           rows={steps.map((s) => ({ category: stepLabel(s.step), values: { kg: s.scrap_kg } }))}
           series={[{ key: 'kg', label: 'Scrap (kg)' }]}
@@ -225,17 +255,21 @@ function StepUsage({ data }: { data: Record<string, unknown> }) {
           emptyMessage="No scrap recorded in the selected range."
         />
       </Card>
-      <Card title="Consumables by Step — table" noPadding>
+      <Card title="Consumables by Step — table" noPadding fill>
         <Table
           columns={[
             { key: 'step', header: 'Step' },
             { key: 'name', header: 'Consumable' },
             { key: 'total_qty', header: 'Total Used', render: (r: (typeof consumableRows)[number]) => <span className="font-mono">{formatQty(r.total_qty, r.unit)}</span> },
           ]}
-          data={consumableRows}
+          data={consumablesVisible}
           keyExtractor={(r) => `${r.step}-${r.name}`}
           emptyMessage="No consumable usage in the selected range."
+          bodyRef={consumablesTableRef}
         />
+        {consumablesHiddenCount > 0 && (
+          <p className="text-sm text-[var(--ink-muted)] px-4 py-2 border-t border-[var(--border)]">+{consumablesHiddenCount} more not shown</p>
+        )}
       </Card>
     </div>
   );

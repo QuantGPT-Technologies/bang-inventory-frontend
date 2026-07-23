@@ -1,16 +1,19 @@
 'use client';
-import { useRouter } from 'next/navigation';
+import { useRef } from 'react';
+import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
-import Button from '@/components/ui/Button';
 import { attentionApi } from '@/lib/api';
-import { AttentionItem, AttentionList } from '@/lib/types';
-import { formatDateTime, ROLE_LABELS, verbForNodeType } from '@/lib/utils';
+import { AttentionList } from '@/lib/types';
 import { useAsyncQuery } from '@/lib/useAsync';
-import { NODE_TYPE_ICONS, NODE_TYPE_COLORS } from '@/components/workflow/workflowNodeMeta';
+import { useFitRowCount } from '@/lib/useFitRowCount';
+import { AttentionRow } from './AttentionRow';
 import { CheckCircle2, ArrowRight } from 'lucide-react';
 
 const EMPTY: AttentionList = { items: [] };
+
+/** Each row here is taller than a table row (icon block, two text lines, action button) --
+ *  measured against the same `px-4 py-4` markup AttentionRow renders. */
+const ROW_HEIGHT_PX = 84;
 
 /**
  * The Home screen's task queue -- the single "what do I do next" view this app didn't have
@@ -19,6 +22,10 @@ const EMPTY: AttentionList = { items: [] };
  * lot's detail page. Reads from GET /attention (see AttentionService on the backend), the one
  * source this queue, the Insights dashboard's alert tiles, and (later) a notification indicator
  * all render from.
+ *
+ * Shows only as many rows as fit the card's available height (no page scroll) -- if more items
+ * exist than fit, the last visible slot becomes a "View all" link to /attention instead of
+ * silently dropping them.
  *
  * Tapping a `can_act` card's button lands on the lot/batch detail page, which (since the lot
  * detail page's own primary-action header redesign) already shows the exact same action as its
@@ -33,79 +40,40 @@ export function TaskQueue() {
   const { data, loading, error } = useAsyncQuery(fetchAttention, [], EMPTY);
   const items = data.items;
 
+  const listRef = useRef<HTMLDivElement>(null);
+  const fitCount = useFitRowCount(listRef, ROW_HEIGHT_PX, 2, 50, 5);
+  const overflow = items.length > fitCount;
+  // Leave room for the "+N more" row itself when truncating, so the last real item doesn't get
+  // pushed just past the fitted height.
+  const visible = overflow ? items.slice(0, Math.max(1, fitCount - 1)) : items;
+  const hiddenCount = items.length - visible.length;
+
   return (
-    <Card title="What Needs Attention" noPadding>
+    <Card title="What Needs Attention" noPadding fill>
       {loading ? (
-        <div className="p-5 text-center text-base text-[var(--ink-muted)]">Loading…</div>
+        <div ref={listRef} className="flex-1 min-h-0 flex items-center justify-center text-base text-[var(--ink-muted)]">Loading…</div>
       ) : error ? (
-        <div className="p-5 text-center text-base font-semibold text-[var(--danger)]">Could not load your to-do list.</div>
+        <div ref={listRef} className="flex-1 min-h-0 flex items-center justify-center text-base font-semibold text-[var(--danger)]">Could not load your to-do list.</div>
       ) : items.length === 0 ? (
-        <div className="p-8 text-center gap-2 flex flex-col items-center">
+        <div ref={listRef} className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2">
           <CheckCircle2 size={32} className="text-[var(--success)]" />
           <p className="text-base text-[var(--ink-muted)]">Nothing to do right now.</p>
         </div>
       ) : (
-        <div className="divide-y divide-[var(--border)]">
-          {items.map((item, i) => (
-            <TaskCard key={`${item.entity_type}-${item.lot_id ?? item.batch_id}-${item.node_key}-${i}`} item={item} />
+        <div ref={listRef} className="flex-1 min-h-0 overflow-hidden divide-y divide-[var(--border)]">
+          {visible.map((item, i) => (
+            <AttentionRow key={`${item.entity_type}-${item.lot_id ?? item.batch_id}-${item.node_key}-${i}`} item={item} />
           ))}
+          {hiddenCount > 0 && (
+            <Link
+              href="/attention"
+              className="flex items-center justify-between gap-2 px-4 py-4 hover:bg-[var(--paper-sunken)] transition-colors text-base font-bold text-[var(--accent)]"
+            >
+              +{hiddenCount} more — View all <ArrowRight size={18} />
+            </Link>
+          )}
         </div>
       )}
     </Card>
-  );
-}
-
-// How long an item can sit in the queue before we flag it as stale. Deliberately not the
-// amber/warning color (see Badge.tsx) -- that's reserved app-wide for "needs action now", and
-// every card in this queue already needs action, so staleness is a subtle ink-weight cue, not a
-// new loud badge.
-const STALE_AFTER_MS = 4 * 60 * 60 * 1000;
-
-function TaskCard({ item }: { item: AttentionItem }) {
-  const router = useRouter();
-  const Icon = NODE_TYPE_ICONS[item.node_type];
-  const color = NODE_TYPE_COLORS[item.node_type];
-  const entityLabel = item.entity_type === 'lot'
-    ? `Lot ${item.lot_number ?? item.lot_id}`
-    : `Batch ${item.batch_number ?? item.batch_id}`;
-  const href = item.entity_type === 'lot' ? `/lots/${item.lot_id}` : `/batches/${item.batch_id}`;
-  const verb = verbForNodeType(item.node_type, item.status);
-  const waitingMs = Date.now() - new Date(item.waiting_since).getTime();
-  const isStale = Number.isFinite(waitingMs) && waitingMs > STALE_AFTER_MS;
-
-  return (
-    <div
-      className="flex items-center gap-4 px-4 py-4 hover:bg-[var(--paper-sunken)] transition-colors cursor-pointer"
-      onClick={() => router.push(href)}
-    >
-      <div
-        className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
-        style={
-          isStale
-            ? { backgroundColor: 'color-mix(in srgb, var(--ink) 12%, transparent)', color: 'var(--ink)' }
-            : { backgroundColor: `color-mix(in srgb, ${color} 16%, transparent)`, color }
-        }
-      >
-        <Icon size={22} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-base font-bold text-[var(--ink)] truncate">
-          {verb} {item.node_name} — {entityLabel}
-          {item.sku_code && <span className="text-[var(--ink-muted)] font-normal"> · {item.sku_code}</span>}
-        </p>
-        <p className={`text-sm font-mono mt-0.5 ${isStale ? 'text-[var(--ink)] font-bold' : 'text-[var(--ink-muted)]'}`}>
-          Waiting since {formatDateTime(item.waiting_since)}
-        </p>
-      </div>
-      {item.can_act ? (
-        <Button size="md" onClick={(e) => { e.stopPropagation(); router.push(href); }}>
-          {verb} <ArrowRight size={18} />
-        </Button>
-      ) : (
-        <Badge variant="muted">
-          Waiting on {item.waiting_on_role ? ROLE_LABELS[item.waiting_on_role] : 'another person'}
-        </Badge>
-      )}
-    </div>
   );
 }

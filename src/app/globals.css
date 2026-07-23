@@ -31,6 +31,11 @@
   --shadow: rgba(20, 16, 12, 0.1);
   --shadow-strong: rgba(20, 16, 12, 0.18);
 
+  /* Sidebar is a permanent dark panel in both app themes (unlike --ink, which inverts under
+   * dark mode) -- defined once here, outside the media query / [data-theme] blocks, so it never
+   * flips. Keep sidebar-consuming components on this token, never on --ink. */
+  --sidebar-bg: #14100c;
+
   /* legacy aliases -- kept so any not-yet-migrated component still resolves to a sane color */
   --paper-dark: var(--paper-sunken);
   --paper-darker: var(--border);

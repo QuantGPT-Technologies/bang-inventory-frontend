@@ -14,6 +14,7 @@ import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import { useAsyncQuery } from '@/lib/useAsync';
 import { pushRecent } from '@/lib/useLocalMemory';
+import { capList } from '@/lib/capList';
 import { NODE_TYPE_ICONS, NODE_TYPE_COLORS, NODE_TYPE_LABELS, withAlpha } from '@/components/workflow/workflowNodeMeta';
 import { LotWorkflowCanvas } from '@/components/workflow/execution/LotWorkflowCanvas';
 import { DL } from '@/components/lots/DL';
@@ -230,7 +231,7 @@ export default function LotDetailPage() {
         }
       />
 
-      <div className={cn('grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 transition-opacity duration-150', loading && 'opacity-60')}>
+      <div className={cn('flex-1 min-h-0 overflow-hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 transition-opacity duration-150', loading && 'opacity-60')}>
         {/* Info */}
         <Card title="Lot Details">
           <dl className="space-y-3 text-base">
@@ -247,6 +248,7 @@ export default function LotDetailPage() {
         <Card
           title="Production Steps"
           className="lg:col-span-2"
+          fill
           action={
             <div className="flex items-center gap-0.5 rounded-lg border border-[var(--border)] p-0.5">
               <button
@@ -281,7 +283,7 @@ export default function LotDetailPage() {
           )}
 
           {pipelineView === 'graph' ? (
-            <div className="h-[520px] w-full rounded-lg border border-[var(--border)] overflow-hidden">
+            <div className="flex-1 min-h-0 w-full rounded-lg border border-[var(--border)] overflow-hidden">
               {graphLoading && (
                 <div className="h-full flex items-center justify-center text-base text-[var(--ink-muted)]">Loading graph…</div>
               )}
@@ -291,7 +293,7 @@ export default function LotDetailPage() {
               {!graphLoading && !graphError && graph && <LotWorkflowCanvas graph={graph} />}
             </div>
           ) : (
-          <div className="space-y-2">
+          <div className="flex-1 min-h-0 overflow-hidden space-y-2">
             {graphLoading && (
               <p className="text-base text-[var(--ink-muted)] italic">Loading pipeline…</p>
             )}
@@ -301,7 +303,15 @@ export default function LotDetailPage() {
             {!graphLoading && !graphError && sortedNodes.length === 0 && (
               <p className="text-base text-[var(--ink-muted)] italic">No steps recorded yet.</p>
             )}
-            {!graphLoading && !graphError && sortedNodes.map((node, idx) => {
+            {(() => {
+              // Steps have highly variable row height (a plain not-yet-reached row is one line;
+              // a completed production_step with variance/scrap badges can be 3-4 lines) -- cap
+              // conservatively rather than measuring exactly, same trade-off as the batch detail
+              // page's capped lists.
+              const { visible, hiddenCount } = capList(sortedNodes, 8);
+              return (
+                <>
+                  {!graphLoading && !graphError && visible.map((node, idx) => {
               const nodeType: WorkflowNodeType = node.node_type;
               const nodeKey = node.node_key;
               const status = node.status;
@@ -510,7 +520,13 @@ export default function LotDetailPage() {
                   </div>
                 </div>
               );
-            })}
+                  })}
+                  {hiddenCount > 0 && (
+                    <p className="text-sm text-[var(--ink-muted)]">+{hiddenCount} more step{hiddenCount === 1 ? '' : 's'} not shown</p>
+                  )}
+                </>
+              );
+            })()}
           </div>
           )}
         </Card>
