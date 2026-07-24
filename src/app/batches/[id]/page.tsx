@@ -22,7 +22,6 @@ import {
 } from '@/lib/validation';
 import { useAsyncQuery } from '@/lib/useAsync';
 import { pushRecent } from '@/lib/useLocalMemory';
-import { capList } from '@/lib/capList';
 import { NODE_TYPE_ICONS, NODE_TYPE_COLORS } from '@/components/workflow/workflowNodeMeta';
 import { REPEAT_BATCH_STORAGE_KEY, type RepeatBatchPrefill } from '@/app/batches/page';
 import { Play, CheckCircle, Split, Plus, X, ArrowRight, Repeat, Info } from 'lucide-react';
@@ -195,46 +194,34 @@ export default function BatchDetailPage() {
           </dl>
         </Card>
 
-        {/* Materials -- capped so a batch with many materials can't grow this card past what fits */}
-        <Card title="Raw Materials" className="lg:col-span-2" noPadding>
-          {(() => {
-            const { visible, hiddenCount } = capList(batch.materials || [], 6);
-            return (
-              <>
-                <Table
-                  columns={[
-                    { key: 'material', header: 'Material', primary: true, render: (m) => m.material_name || `Material #${m.raw_material_id}` },
-                    { key: 'planned', header: 'Planned', className: 'text-right font-mono', headerClassName: 'text-right', render: (m) => formatQty(m.planned_qty, m.unit || batch.unit) },
-                    { key: 'actual', header: 'Actual', className: 'text-right font-mono text-[var(--ink-muted)]', headerClassName: 'text-right', render: (m) => (m.actual_qty != null ? formatQty(m.actual_qty, m.unit || batch.unit) : '—') },
-                  ]}
-                  data={visible}
-                  keyExtractor={(m) => m.raw_material_id}
-                  emptyMessage="No materials recorded."
-                />
-                {hiddenCount > 0 && <p className="px-4 py-2 text-sm text-[var(--ink-muted)] border-t border-[var(--border)]">+{hiddenCount} more not shown</p>}
-              </>
-            );
-          })()}
+        {/* Materials -- internal scroll past a max height, rather than truncating the data */}
+        <Card title="Raw Materials" className="lg:col-span-2 max-h-80" noPadding fill>
+          <Table
+            columns={[
+              { key: 'material', header: 'Material', primary: true, render: (m) => m.material_name || `Material #${m.raw_material_id}` },
+              { key: 'planned', header: 'Planned', className: 'text-right font-mono', headerClassName: 'text-right', render: (m) => formatQty(m.planned_qty, m.unit || batch.unit) },
+              { key: 'actual', header: 'Actual', className: 'text-right font-mono text-[var(--ink-muted)]', headerClassName: 'text-right', render: (m) => (m.actual_qty != null ? formatQty(m.actual_qty, m.unit || batch.unit) : '—') },
+            ]}
+            data={batch.materials || []}
+            keyExtractor={(m) => m.raw_material_id}
+            emptyMessage="No materials recorded."
+          />
         </Card>
 
-        {/* Scrap -- capped, same reason as Materials */}
-        {batch.scrap && batch.scrap.length > 0 && (() => {
-          const { visible, hiddenCount } = capList(batch.scrap, 4);
-          return (
-            <Card title="Scrap" className="lg:col-span-3" noPadding>
-              <Table
-                columns={[
-                  { key: 'type', header: 'Type', primary: true, render: (s) => SCRAP_TYPE_LABELS[s.scrap_type] || s.scrap_type.replace(/_/g, ' ') },
-                  { key: 'quantity', header: 'Quantity', className: 'text-right font-mono', headerClassName: 'text-right', render: (s) => formatQty(s.quantity, s.unit) },
-                  { key: 'notes', header: 'Notes', className: 'text-[var(--ink-muted)]', render: (s) => s.notes || '—' },
-                ]}
-                data={visible}
-                keyExtractor={(s) => s.id}
-              />
-              {hiddenCount > 0 && <p className="px-4 py-2 text-sm text-[var(--ink-muted)] border-t border-[var(--border)]">+{hiddenCount} more not shown</p>}
-            </Card>
-          );
-        })()}
+        {/* Scrap -- same internal-scroll treatment as Materials */}
+        {batch.scrap && batch.scrap.length > 0 && (
+          <Card title="Scrap" className="lg:col-span-3 max-h-80" noPadding fill>
+            <Table
+              columns={[
+                { key: 'type', header: 'Type', primary: true, render: (s) => SCRAP_TYPE_LABELS[s.scrap_type] || s.scrap_type.replace(/_/g, ' ') },
+                { key: 'quantity', header: 'Quantity', className: 'text-right font-mono', headerClassName: 'text-right', render: (s) => formatQty(s.quantity, s.unit) },
+                { key: 'notes', header: 'Notes', className: 'text-[var(--ink-muted)]', render: (s) => s.notes || '—' },
+              ]}
+              data={batch.scrap}
+              keyExtractor={(s) => s.id}
+            />
+          </Card>
+        )}
 
         {/* Batch's own workflow (blend -> split_into_lots) plus every lot instance the fan-out spawned */}
         {workflow && (
@@ -259,69 +246,61 @@ export default function BatchDetailPage() {
                 })}
               </div>
 
-              {workflow.child_lots.length > 0 && (() => {
-                const { visible, hiddenCount } = capList(workflow.child_lots, 6);
-                return (
-                  <div>
-                    <div className="text-sm font-bold uppercase tracking-wide text-[var(--ink-muted)] mb-2">
-                      Lots Created
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                      {visible.map((cl) => (
-                        <Link
-                          key={cl.lot_id}
-                          href={`/lots/${cl.lot_id}`}
-                          className="flex items-center justify-between gap-2 px-3 py-2.5 min-h-11 rounded-lg border border-[var(--border)] hover:bg-[var(--paper-sunken)] transition-colors"
-                        >
-                          <div className="flex flex-col min-w-0">
-                            <span className="font-mono text-base font-bold text-[var(--accent)]">{cl.lot_number}</span>
-                            <span className="text-sm text-[var(--ink-muted)] truncate">
-                              {cl.current_node_key ? getNodeLabel(cl.current_node_key) : '—'}
-                            </span>
-                          </div>
-                          <Badge variant={lotStatusBadge(cl.status)}>{LOT_STATUS_LABELS[cl.status] || cl.status}</Badge>
-                        </Link>
-                      ))}
-                    </div>
-                    {hiddenCount > 0 && <p className="mt-2 text-sm text-[var(--ink-muted)]">+{hiddenCount} more not shown</p>}
+              {workflow.child_lots.length > 0 && (
+                <div>
+                  <div className="text-sm font-bold uppercase tracking-wide text-[var(--ink-muted)] mb-2">
+                    Lots Created
                   </div>
-                );
-              })()}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+                    {workflow.child_lots.map((cl) => (
+                      <Link
+                        key={cl.lot_id}
+                        href={`/lots/${cl.lot_id}`}
+                        className="flex items-center justify-between gap-2 px-3 py-2.5 min-h-11 rounded-lg border border-[var(--border)] hover:bg-[var(--paper-sunken)] transition-colors"
+                      >
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-mono text-base font-bold text-[var(--accent)]">{cl.lot_number}</span>
+                          <span className="text-sm text-[var(--ink-muted)] truncate">
+                            {cl.current_node_key ? getNodeLabel(cl.current_node_key) : '—'}
+                          </span>
+                        </div>
+                        <Badge variant={lotStatusBadge(cl.status)}>{LOT_STATUS_LABELS[cl.status] || cl.status}</Badge>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </Card>
         )}
 
-        {/* Lots -- capped, same reason as Materials */}
-        {batch.lots && batch.lots.length > 0 && (() => {
-          const { visible, hiddenCount } = capList(batch.lots, 6);
-          return (
-            <Card title="Lots" className="lg:col-span-3" noPadding>
-              <div className="divide-y divide-[var(--border)]">
-                {visible.map((lot) => (
-                  <Link
-                    key={lot.id}
-                    href={`/lots/${lot.id}`}
-                    className="flex items-center justify-between px-4 py-3.5 min-h-11 hover:bg-[var(--paper-sunken)] transition-colors"
-                  >
-                    <div className="flex items-center gap-4">
-                      <span className="font-mono text-base font-bold text-[var(--accent)]">{lot.lot_number}</span>
-                      <span className="text-base text-[var(--ink-muted)]">{lot.sku_code}</span>
-                      <span className="text-base">{formatQty(lot.quantity, lot.unit)}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {lot.current_step && (
-                        <span className="text-sm text-[var(--ink-muted)]">{getNodeLabel(lot.current_step)}</span>
-                      )}
-                      <Badge variant={lotStatusBadge(lot.status)}>{LOT_STATUS_LABELS[lot.status] || lot.status}</Badge>
-                      <ArrowRight size={18} className="text-[var(--ink-muted)]" />
-                    </div>
-                  </Link>
-                ))}
-              </div>
-              {hiddenCount > 0 && <p className="px-4 py-2 text-sm text-[var(--ink-muted)] border-t border-[var(--border)]">+{hiddenCount} more not shown</p>}
-            </Card>
-          );
-        })()}
+        {/* Lots -- internal scroll past a max height, rather than truncating the data */}
+        {batch.lots && batch.lots.length > 0 && (
+          <Card title="Lots" className="lg:col-span-3" noPadding>
+            <div className="divide-y divide-[var(--border)] max-h-80 overflow-y-auto">
+              {batch.lots.map((lot) => (
+                <Link
+                  key={lot.id}
+                  href={`/lots/${lot.id}`}
+                  className="flex items-center justify-between px-4 py-3.5 min-h-11 hover:bg-[var(--paper-sunken)] transition-colors"
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="font-mono text-base font-bold text-[var(--accent)]">{lot.lot_number}</span>
+                    <span className="text-base text-[var(--ink-muted)]">{lot.sku_code}</span>
+                    <span className="text-base">{formatQty(lot.quantity, lot.unit)}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {lot.current_step && (
+                      <span className="text-sm text-[var(--ink-muted)]">{getNodeLabel(lot.current_step)}</span>
+                    )}
+                    <Badge variant={lotStatusBadge(lot.status)}>{LOT_STATUS_LABELS[lot.status] || lot.status}</Badge>
+                    <ArrowRight size={18} className="text-[var(--ink-muted)]" />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </Card>
+        )}
       </div>
 
       {showBlend && batch.status === 'created' && (

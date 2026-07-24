@@ -1,9 +1,9 @@
 'use client';
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/Card';
-import { Table, TABLE_ROW_HEIGHT_PX } from '@/components/ui/Table';
+import { Table } from '@/components/ui/Table';
 import { ErrorState } from '@/components/ui/ErrorState';
 import Select from '@/components/ui/Select';
 import Input from '@/components/ui/Input';
@@ -12,8 +12,6 @@ import { toast } from '@/components/ui/Toast';
 import { reportsApi } from '@/lib/api';
 import { formatQty, parseApiError, type ApiErrorInfo } from '@/lib/utils';
 import { BarChart } from '@/components/charts/BarChart';
-import { useFitRowCount } from '@/lib/useFitRowCount';
-import { capList } from '@/lib/capList';
 import { FileText } from 'lucide-react';
 import { stepLabel, groupByUnit } from '../shared';
 
@@ -131,31 +129,23 @@ export default function DetailedReportsPage() {
 function MaterialUsage({ data }: { data: Record<string, unknown> }) {
   const rows = (data as { by_material?: { name: string; total_qty: number; unit: string }[] }).by_material || [];
   const groups = groupByUnit(rows);
-  // Distinct units are typically 2-4 (kg, g, L, pcs) in practice -- capped so a data set with
-  // unusually many distinct units still fits on screen, rather than growing the page unbounded.
-  const { visible: visibleGroups, hiddenCount } = capList(groups, 4);
 
   return (
-    <div className="flex-1 min-h-0 overflow-hidden flex flex-col gap-4">
+    <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4">
       {rows.length === 0 ? (
         <Card title="Material Usage">
           <p className="text-base text-[var(--ink-muted)] italic">No material usage data available for the selected range.</p>
         </Card>
       ) : (
-        <>
-          {visibleGroups.map(([unit, group]) => (
-            <Card key={unit} title={`Material Usage — ${unit}`} className="flex-1 min-h-0" fill>
-              <BarChart
-                rows={group.map((r) => ({ category: r.name, values: { qty: r.total_qty } }))}
-                series={[{ key: 'qty', label: `Used (${unit})` }]}
-                formatValue={(v) => formatQty(v, unit)}
-              />
-            </Card>
-          ))}
-          {hiddenCount > 0 && (
-            <p className="text-sm text-[var(--ink-muted)] flex-shrink-0">+{hiddenCount} more unit group{hiddenCount === 1 ? '' : 's'} not shown</p>
-          )}
-        </>
+        groups.map(([unit, group]) => (
+          <Card key={unit} title={`Material Usage — ${unit}`} className="flex-shrink-0">
+            <BarChart
+              rows={group.map((r) => ({ category: r.name, values: { qty: r.total_qty } }))}
+              series={[{ key: 'qty', label: `Used (${unit})` }]}
+              formatValue={(v) => formatQty(v, unit)}
+            />
+          </Card>
+        ))
       )}
     </div>
   );
@@ -164,12 +154,6 @@ function MaterialUsage({ data }: { data: Record<string, unknown> }) {
 function RawMaterialUsage({ data }: { data: Record<string, unknown> }) {
   const rows = (data as { by_material?: { name: string; unit: string; planned_qty: number; actual_qty: number; variance_qty: number }[] }).by_material || [];
   const groups = groupByUnit(rows);
-  const { visible: visibleGroups, hiddenCount } = capList(groups, 2);
-
-  const varianceTableRef = useRef<HTMLDivElement>(null);
-  const varianceRowCount = useFitRowCount(varianceTableRef, TABLE_ROW_HEIGHT_PX, 3, 100, 10);
-  const varianceVisible = rows.slice(0, varianceRowCount);
-  const varianceHiddenCount = rows.length - varianceVisible.length;
 
   return (
     <div className="flex-1 min-h-0 overflow-hidden flex flex-col gap-4">
@@ -179,21 +163,20 @@ function RawMaterialUsage({ data }: { data: Record<string, unknown> }) {
         </Card>
       ) : (
         <>
-          {visibleGroups.map(([unit, group]) => (
-            <Card key={unit} title={`Raw Material Usage — ${unit}`} subtitle="Blend-time planned vs. actual consumption" className="flex-shrink-0">
-              <BarChart
-                rows={group.map((r) => ({ category: r.name, values: { planned: r.planned_qty, actual: r.actual_qty } }))}
-                series={[
-                  { key: 'planned', label: 'Planned' },
-                  { key: 'actual', label: 'Actual' },
-                ]}
-                formatValue={(v) => formatQty(v, unit)}
-              />
-            </Card>
-          ))}
-          {hiddenCount > 0 && (
-            <p className="text-sm text-[var(--ink-muted)] flex-shrink-0">+{hiddenCount} more unit group{hiddenCount === 1 ? '' : 's'} not shown</p>
-          )}
+          <div className="flex-shrink-0 max-h-64 overflow-y-auto flex flex-col gap-4">
+            {groups.map(([unit, group]) => (
+              <Card key={unit} title={`Raw Material Usage — ${unit}`} subtitle="Blend-time planned vs. actual consumption">
+                <BarChart
+                  rows={group.map((r) => ({ category: r.name, values: { planned: r.planned_qty, actual: r.actual_qty } }))}
+                  series={[
+                    { key: 'planned', label: 'Planned' },
+                    { key: 'actual', label: 'Actual' },
+                  ]}
+                  formatValue={(v) => formatQty(v, unit)}
+                />
+              </Card>
+            ))}
+          </div>
           <Card title="Variance — table" subtitle="Actual − planned; positive means more was used than planned" noPadding fill>
             <Table
               columns={[
@@ -211,13 +194,9 @@ function RawMaterialUsage({ data }: { data: Record<string, unknown> }) {
                   ),
                 },
               ]}
-              data={varianceVisible}
+              data={rows}
               keyExtractor={(r) => r.name}
-              bodyRef={varianceTableRef}
             />
-            {varianceHiddenCount > 0 && (
-              <p className="text-sm text-[var(--ink-muted)] px-4 py-2 border-t border-[var(--border)]">+{varianceHiddenCount} more not shown</p>
-            )}
           </Card>
         </>
       )}
@@ -231,11 +210,6 @@ function StepUsage({ data }: { data: Record<string, unknown> }) {
   const consumableRows = steps.flatMap((s) =>
     s.consumables.map((c) => ({ step: stepLabel(s.step), name: c.name, unit: c.unit, total_qty: c.total_qty }))
   );
-
-  const consumablesTableRef = useRef<HTMLDivElement>(null);
-  const consumablesRowCount = useFitRowCount(consumablesTableRef, TABLE_ROW_HEIGHT_PX, 3, 100, 10);
-  const consumablesVisible = consumableRows.slice(0, consumablesRowCount);
-  const consumablesHiddenCount = consumableRows.length - consumablesVisible.length;
 
   return (
     <div className="flex-1 min-h-0 overflow-hidden flex flex-col gap-4">
@@ -262,14 +236,10 @@ function StepUsage({ data }: { data: Record<string, unknown> }) {
             { key: 'name', header: 'Consumable' },
             { key: 'total_qty', header: 'Total Used', render: (r: (typeof consumableRows)[number]) => <span className="font-mono">{formatQty(r.total_qty, r.unit)}</span> },
           ]}
-          data={consumablesVisible}
+          data={consumableRows}
           keyExtractor={(r) => `${r.step}-${r.name}`}
           emptyMessage="No consumable usage in the selected range."
-          bodyRef={consumablesTableRef}
         />
-        {consumablesHiddenCount > 0 && (
-          <p className="text-sm text-[var(--ink-muted)] px-4 py-2 border-t border-[var(--border)]">+{consumablesHiddenCount} more not shown</p>
-        )}
       </Card>
     </div>
   );

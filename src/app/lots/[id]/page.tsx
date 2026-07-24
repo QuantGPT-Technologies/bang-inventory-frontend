@@ -14,7 +14,6 @@ import { useAuthStore } from '@/store/authStore';
 import { canAccess } from '@/lib/auth';
 import { useAsyncQuery } from '@/lib/useAsync';
 import { pushRecent } from '@/lib/useLocalMemory';
-import { capList } from '@/lib/capList';
 import { NODE_TYPE_ICONS, NODE_TYPE_COLORS, NODE_TYPE_LABELS, withAlpha } from '@/components/workflow/workflowNodeMeta';
 import { LotWorkflowCanvas } from '@/components/workflow/execution/LotWorkflowCanvas';
 import { DL } from '@/components/lots/DL';
@@ -293,7 +292,7 @@ export default function LotDetailPage() {
               {!graphLoading && !graphError && graph && <LotWorkflowCanvas graph={graph} />}
             </div>
           ) : (
-          <div className="flex-1 min-h-0 overflow-hidden space-y-2">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-2">
             {graphLoading && (
               <p className="text-base text-[var(--ink-muted)] italic">Loading pipeline…</p>
             )}
@@ -303,15 +302,7 @@ export default function LotDetailPage() {
             {!graphLoading && !graphError && sortedNodes.length === 0 && (
               <p className="text-base text-[var(--ink-muted)] italic">No steps recorded yet.</p>
             )}
-            {(() => {
-              // Steps have highly variable row height (a plain not-yet-reached row is one line;
-              // a completed production_step with variance/scrap badges can be 3-4 lines) -- cap
-              // conservatively rather than measuring exactly, same trade-off as the batch detail
-              // page's capped lists.
-              const { visible, hiddenCount } = capList(sortedNodes, 8);
-              return (
-                <>
-                  {!graphLoading && !graphError && visible.map((node, idx) => {
+            {!graphLoading && !graphError && sortedNodes.map((node, idx) => {
               const nodeType: WorkflowNodeType = node.node_type;
               const nodeKey = node.node_key;
               const status = node.status;
@@ -520,13 +511,7 @@ export default function LotDetailPage() {
                   </div>
                 </div>
               );
-                  })}
-                  {hiddenCount > 0 && (
-                    <p className="text-sm text-[var(--ink-muted)]">+{hiddenCount} more step{hiddenCount === 1 ? '' : 's'} not shown</p>
-                  )}
-                </>
-              );
-            })()}
+            })}
           </div>
           )}
         </Card>

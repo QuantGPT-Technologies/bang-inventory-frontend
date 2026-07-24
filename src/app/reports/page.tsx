@@ -1,10 +1,10 @@
 'use client';
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, StatCard } from '@/components/ui/Card';
-import { Table, TABLE_ROW_HEIGHT_PX } from '@/components/ui/Table';
+import { Table } from '@/components/ui/Table';
 import { Badge, stockStatusBadge } from '@/components/ui/Badge';
 import { ErrorState } from '@/components/ui/ErrorState';
 import Input from '@/components/ui/Input';
@@ -14,7 +14,6 @@ import { cn, formatQty, parseApiError, type ApiErrorInfo } from '@/lib/utils';
 import { StockLevelItem, StockLevels, YieldSummary, YieldSummaryRow } from '@/lib/types';
 import { BarChart, type BarChartRow } from '@/components/charts/BarChart';
 import { LineChart, type LineChartPoint } from '@/components/charts/LineChart';
-import { useFitRowCount } from '@/lib/useFitRowCount';
 import { stepLabel } from './shared';
 import { Factory, Layers, TrendingUp, AlertTriangle, PackageX, ArrowRight } from 'lucide-react';
 
@@ -56,11 +55,6 @@ export default function ReportsPage() {
   const [dateError, setDateError] = useState('');
   const [yieldGroupBy, setYieldGroupBy] = useState<'step' | 'sku'>('step');
   const [tab, setTab] = useState<ReportsTab>('yield');
-
-  const yieldTableRef = useRef<HTMLDivElement>(null);
-  const yieldRowCount = useFitRowCount(yieldTableRef, TABLE_ROW_HEIGHT_PX, 3, 100, 10);
-  const stockTableRef = useRef<HTMLDivElement>(null);
-  const stockRowCount = useFitRowCount(stockTableRef, TABLE_ROW_HEIGHT_PX, 3, 100, 10);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ApiErrorInfo | null>(null);
@@ -151,11 +145,6 @@ export default function ReportsPage() {
     values: { batches: d.batches_created, lots: d.lots_completed },
   }));
   const scrapPoints: LineChartPoint[] = trendDays.map((d) => ({ x: d.date, values: { scrap: d.scrap_kg } }));
-
-  const yieldVisible = yieldData.rows.slice(0, yieldRowCount);
-  const yieldHiddenCount = yieldData.rows.length - yieldVisible.length;
-  const stockVisible = stockRows.slice(0, stockRowCount);
-  const stockHiddenCount = stockRows.length - stockVisible.length;
 
   return (
     <AppShell>
@@ -276,13 +265,9 @@ export default function ReportsPage() {
                     { key: 'yield_pct', header: 'Yield', render: (r: YieldSummaryRow) => <span className="font-mono font-medium">{r.yield_pct.toFixed(1)}%</span> },
                     { key: 'instance_count', header: 'Instances', render: (r: YieldSummaryRow) => <span className="font-mono text-[var(--ink-muted)]">{r.instance_count}</span> },
                   ]}
-                  data={yieldVisible}
+                  data={yieldData.rows}
                   keyExtractor={(r) => r.key}
-                  bodyRef={yieldTableRef}
                 />
-                {yieldHiddenCount > 0 && (
-                  <p className="text-sm text-[var(--ink-muted)] pt-2">Showing top {yieldVisible.length} of {yieldData.rows.length}.</p>
-                )}
               </div>
             )}
           </Card>
@@ -313,17 +298,11 @@ export default function ReportsPage() {
                 },
                 { key: 'status', header: 'Status', render: (r: (typeof stockRows)[number]) => <Badge variant={stockStatusBadge(r.status)}>{r.status}</Badge> },
               ]}
-              data={stockVisible}
+              data={stockRows}
               keyExtractor={(r) => `${r.category}-${r.id}`}
               loading={loading}
               emptyMessage="No stock data available."
-              bodyRef={stockTableRef}
             />
-            {stockHiddenCount > 0 && (
-              <p className="text-sm text-[var(--ink-muted)] px-4 py-2 border-t border-[var(--border)]">
-                Showing the {stockVisible.length} most urgent of {stockRows.length} — see the full list under Raw Materials, Consumables, or Products.
-              </p>
-            )}
           </Card>
         )}
 

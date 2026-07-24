@@ -11,11 +11,6 @@ import { Factory, Layers, AlertTriangle, TrendingUp, RefreshCw } from 'lucide-re
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import { TaskQueue } from '@/components/dashboard/TaskQueue';
-import { capList } from '@/lib/capList';
-
-/** The Recent Batches / Active Lots cards sit in a fixed max-h-64 (256px) box below the flexible
- *  TaskQueue -- capped to what reliably fits an ~64px row under a ~50px title bar there. */
-const RECENT_ACTIVITY_MAX_ROWS = 3;
 
 // Poll the dashboard's own load() this often while the page stays mounted -- background refresh,
 // not a user-visible loading state (see the isInitialLoad-style guard on `loading` below).
@@ -172,8 +167,8 @@ export default function DashboardPage() {
           ) : recentBatches.length === 0 ? (
             <div className="p-5 text-center text-base text-[var(--ink-muted)] italic">No batches yet.</div>
           ) : (
-            <div className="divide-y divide-[var(--border)]">
-              {capList(recentBatches, RECENT_ACTIVITY_MAX_ROWS).visible.map((b) => (
+            <div className="divide-y divide-[var(--border)] h-full overflow-y-auto">
+              {recentBatches.map((b) => (
                 <Link
                   key={b.id}
                   href={`/batches/${b.id}`}
@@ -212,8 +207,8 @@ export default function DashboardPage() {
           ) : activeLots.length === 0 ? (
             <div className="p-5 text-center text-base text-[var(--ink-muted)] italic">No active lots.</div>
           ) : (
-            <div className="divide-y divide-[var(--border)]">
-              {capList(activeLots, RECENT_ACTIVITY_MAX_ROWS).visible.map((l) => (
+            <div className="divide-y divide-[var(--border)] h-full overflow-y-auto">
+              {activeLots.map((l) => (
                 <Link
                   key={l.id}
                   href={`/lots/${l.id}`}
