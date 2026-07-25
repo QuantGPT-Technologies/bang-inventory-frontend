@@ -70,6 +70,7 @@ function SKUsPageInner() {
     const res = await skusApi.list(page, perPage, debouncedSearch || undefined);
     const data = res.data?.data;
     const items = Array.isArray(data?.items) ? data.items : [];
+    items.sort((a: SKU, b: SKU) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     return { items, total: resolvePaginationTotal(data?.total, items, page, perPage), page, per_page: perPage };
   }, [page, perPage, debouncedSearch]);
 

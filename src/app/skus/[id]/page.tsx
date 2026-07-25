@@ -185,7 +185,6 @@ function DL({ label, children }: { label: string; children: React.ReactNode }) {
 }
 
 const skuDetailsSchema = z.object({
-  code: skuSchema.shape.code,
   name: skuSchema.shape.name,
   description: skuSchema.shape.description,
   customer_id: skuSchema.shape.customer_id,
@@ -206,7 +205,6 @@ function SkuDetailsForm({
   onCancel: () => void;
   onSaved: () => void;
 }) {
-  const [code, setCode] = useState(sku.code);
   const [name, setName] = useState(sku.name);
   const [description, setDescription] = useState(sku.description || '');
   const [customerId, setCustomerId] = useState<number | undefined>(sku.customer_id);
@@ -222,7 +220,6 @@ function SkuDetailsForm({
     if (loading) return;
 
     const payload = {
-      code,
       name,
       description,
       customer_id: customerId,
@@ -252,7 +249,10 @@ function SkuDetailsForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <Input label="SKU Code" value={code} onChange={(e) => setCode(e.target.value)} error={errors.code} />
+      <div>
+        <label className="text-sm font-bold text-[var(--ink-light)] uppercase tracking-wide block mb-1.5">SKU Code</label>
+        <p className="font-mono font-bold text-base">{sku.code}</p>
+      </div>
       <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} error={errors.name} />
       <Textarea label="Description" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} maxLength={1000} error={errors.description} />
       <Select

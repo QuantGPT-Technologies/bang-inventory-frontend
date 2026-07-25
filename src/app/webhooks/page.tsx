@@ -55,7 +55,9 @@ export default function WebhooksPage() {
   const fetchWebhooks = useCallback(async () => {
     const res = await webhooksApi.list();
     const items = res.data?.data;
-    return Array.isArray(items) ? items : [];
+    const list = Array.isArray(items) ? items : [];
+    list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return list;
   }, []);
 
   const { data: allWebhooks, loading, error, reload } = useAsyncQuery<Webhook[]>(fetchWebhooks, [], []);
@@ -102,7 +104,7 @@ export default function WebhooksPage() {
   };
 
   const columns = [
-    { key: 'name', header: 'Name', primary: true, render: (w: Webhook) => <span className="font-bold">{w.name}</span> },
+    { key: 'name', header: 'Name', primary: true, render: (w: Webhook) => <span className="font-bold">{w.name || <span className="italic text-[var(--ink-muted)]">Unnamed</span>}</span> },
     { key: 'url', header: 'URL', render: (w: Webhook) => <span className="font-mono text-sm break-all">{w.url}</span> },
     {
       key: 'events',
