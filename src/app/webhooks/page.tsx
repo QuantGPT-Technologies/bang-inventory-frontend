@@ -22,8 +22,14 @@ import { useMediaQuery } from '@/lib/useMediaQuery';
 import { Plus, Play, Trash2, Edit } from 'lucide-react';
 
 const EVENT_OPTIONS = [
-  'batch.created', 'batch.blending_started', 'batch.blending_completed', 'batch.lots_created',
+  'batch.created', 'batch.blending_started', 'batch.blending_completed', 'batch.lots_created', 'batch.completed',
   'lot.step_started', 'lot.step_completed', 'lot.step_skipped', 'lot.scrap_recorded', 'lot.completed',
+  'workflow.node_started', 'workflow.node_completed', 'workflow.node_skipped', 'workflow.node_overridden',
+  'workflow.scrap_recorded', 'workflow.approval_requested', 'workflow.approval_decided',
+  'workflow.quality_result_recorded', 'workflow.instance_completed', 'workflow.batch_split',
+  'workflow.auto_scrap_calculated',
+  'purchase_order.created', 'purchase_order.sent', 'purchase_order.received', 'purchase_order.closed', 'purchase_order.cancelled',
+  'sales_order.created', 'sales_order.confirmed', 'sales_order.dispatched', 'sales_order.closed', 'sales_order.cancelled',
 ];
 
 // GET /webhooks has no page/per_page params -- it returns the full list in one response. Paged
@@ -260,6 +266,8 @@ function WebhookModal({
 
   const batchEvents = EVENT_OPTIONS.filter((e) => e.startsWith('batch.'));
   const lotEvents = EVENT_OPTIONS.filter((e) => e.startsWith('lot.'));
+  const workflowEvents = EVENT_OPTIONS.filter((e) => e.startsWith('workflow.'));
+  const orderEvents = EVENT_OPTIONS.filter((e) => e.startsWith('purchase_order.') || e.startsWith('sales_order.'));
 
   const handleUrlBlur = () => {
     const trimmed = url.trim();
@@ -322,6 +330,8 @@ function WebhookModal({
             <button type="button" onClick={() => setEvents(EVENT_OPTIONS)} className="text-sm font-semibold px-3 min-h-9 rounded-full border-2 border-[var(--border-strong)] text-[var(--ink-light)] hover:bg-[var(--paper-sunken)] transition-colors">All</button>
             <button type="button" onClick={() => setEvents(batchEvents)} className="text-sm font-semibold px-3 min-h-9 rounded-full border-2 border-[var(--border-strong)] text-[var(--ink-light)] hover:bg-[var(--paper-sunken)] transition-colors">Batch events</button>
             <button type="button" onClick={() => setEvents(lotEvents)} className="text-sm font-semibold px-3 min-h-9 rounded-full border-2 border-[var(--border-strong)] text-[var(--ink-light)] hover:bg-[var(--paper-sunken)] transition-colors">Lot events</button>
+            <button type="button" onClick={() => setEvents(workflowEvents)} className="text-sm font-semibold px-3 min-h-9 rounded-full border-2 border-[var(--border-strong)] text-[var(--ink-light)] hover:bg-[var(--paper-sunken)] transition-colors">Workflow events</button>
+            <button type="button" onClick={() => setEvents(orderEvents)} className="text-sm font-semibold px-3 min-h-9 rounded-full border-2 border-[var(--border-strong)] text-[var(--ink-light)] hover:bg-[var(--paper-sunken)] transition-colors">Order events</button>
           </div>
           <div className="flex flex-wrap gap-2">
             {EVENT_OPTIONS.map((ev) => (

@@ -10,7 +10,7 @@ import { readRecent } from '@/lib/useLocalMemory';
 import {
   Home, Factory, Package2, Users, Building2,
   Truck, FlaskConical, Wrench, Layers, Webhook, Workflow,
-  BarChart3, LogOut, ChevronRight, X, Clock
+  BarChart3, LogOut, ChevronRight, X, Clock, ShoppingCart, Send
 } from 'lucide-react';
 
 // Grouped by what someone actually does, not by backend resource/admin category: the daily
@@ -27,6 +27,13 @@ const navItems = [
     items: [
       { href: '/batches', label: 'Batches', icon: Factory, resource: 'batches', action: 'read' },
       { href: '/lots', label: 'Lots', icon: Layers, resource: 'lots', action: 'read' },
+    ],
+  },
+  {
+    label: 'Orders',
+    items: [
+      { href: '/orders/purchase', label: 'Purchase Orders', icon: ShoppingCart, resource: 'purchase_orders', action: 'read' },
+      { href: '/orders/sales', label: 'Sales Orders', icon: Send, resource: 'sales_orders', action: 'read' },
     ],
   },
   {

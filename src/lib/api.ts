@@ -167,6 +167,36 @@ export const workflowTemplatesApi = {
     api.post(`/workflow-templates/${id}/versions/${versionNumber}/publish`),
 };
 
+// --- Purchase Orders ---
+export const purchaseOrdersApi = {
+  list: (params?: object) => api.get('/purchase-orders', { params }),
+  get: (id: number) => api.get(`/purchase-orders/${id}`),
+  create: (data: object) => api.post('/purchase-orders', data),
+  update: (id: number, data: object) => api.put(`/purchase-orders/${id}`, data),
+  send: (id: number) => api.post(`/purchase-orders/${id}/send`),
+  receive: (id: number, lines: object[]) => api.post(`/purchase-orders/${id}/receive`, { lines }),
+  close: (id: number) => api.post(`/purchase-orders/${id}/close`),
+  cancel: (id: number) => api.post(`/purchase-orders/${id}/cancel`),
+};
+
+// --- Sales Orders ---
+export const salesOrdersApi = {
+  list: (params?: object) => api.get('/sales-orders', { params }),
+  get: (id: number) => api.get(`/sales-orders/${id}`),
+  create: (data: object) => api.post('/sales-orders', data),
+  update: (id: number, data: object) => api.put(`/sales-orders/${id}`, data),
+  confirm: (id: number) => api.post(`/sales-orders/${id}/confirm`),
+  dispatch: (id: number, lines: object[]) => api.post(`/sales-orders/${id}/dispatch`, { lines }),
+  close: (id: number) => api.post(`/sales-orders/${id}/close`),
+  cancel: (id: number) => api.post(`/sales-orders/${id}/cancel`),
+};
+
+// --- Stock Ledger ---
+export const stockLedgerApi = {
+  list: (params: { item_type: 'sku' | 'raw_material' | 'consumable'; item_id: number; page?: number; per_page?: number }) =>
+    api.get('/stock/ledger', { params }),
+};
+
 // --- Webhooks ---
 export const webhooksApi = {
   list: () => api.get('/webhooks'),
@@ -194,6 +224,8 @@ export const reportsApi = {
     api.get('/reports/yield-summary', { params }),
   stockLevels: (params?: object) =>
     api.get('/reports/stock-levels', { params }),
+  purchaseOrdersSummary: () => api.get('/reports/purchase-orders-summary'),
+  salesOrdersSummary: () => api.get('/reports/sales-orders-summary'),
 };
 
 // The single "what needs attention right now" source -- backs the Home task queue and (later)

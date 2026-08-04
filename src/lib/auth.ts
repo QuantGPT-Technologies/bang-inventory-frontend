@@ -45,6 +45,8 @@ export const ROUTE_PERMISSIONS: { prefix: string; resource: string; action: stri
   { prefix: '/batches', resource: 'batches', action: 'read' },
   { prefix: '/lots', resource: 'lots', action: 'read' },
   { prefix: '/workflow-templates', resource: 'workflow_templates', action: 'read' },
+  { prefix: '/orders/purchase', resource: 'purchase_orders', action: 'read' },
+  { prefix: '/orders/sales', resource: 'sales_orders', action: 'read' },
 ];
 
 export function routePermission(pathname: string) {
@@ -99,6 +101,22 @@ export function canAccess(user: User | null, resource: string, action: string): 
       approve: ['admin', 'manager', 'engineer', 'production'],
       quality_result: ['admin', 'manager', 'engineer', 'production'],
     },
+    // Mirrors router.go: create/update/send/close/cancel are mgmtRoles (admin+manager); receive
+    // is also open to production (floor activity, same reasoning as lot scrap/consumable
+    // recording -- see UI_GUIDE.md §7 Step 3). read is open to all authenticated roles.
+    purchase_orders: {
+      read: ['admin', 'manager', 'engineer', 'production'],
+      write: ['admin', 'manager'],
+      receive: ['admin', 'manager', 'production'],
+    },
+    sales_orders: {
+      read: ['admin', 'manager', 'engineer', 'production'],
+      write: ['admin', 'manager'],
+      dispatch: ['admin', 'manager', 'production'],
+    },
+    // GET /stock/ledger has no role restriction beyond being authenticated (see UI_GUIDE.md §7
+    // Step 7: "Who: All authenticated roles") -- no permissions entry needed; any signed-in user
+    // can view it, so callers should skip the canAccess check for this one entirely.
     webhooks: { crud: ['admin'] },
     reports: { view: ['admin', 'manager', 'engineer'] },
     // Mirrors router.go's workflowTemplates group: GET routes use allRoles, POST/PUT (create,

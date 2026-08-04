@@ -324,6 +324,86 @@ export const consumableUsageSchema = z.object({
   unit: requiredText('Unit', 20),
 });
 
+// --- Purchase & Sales Orders ---
+
+const orderLineBaseSchema = z.object({
+  ordered_qty: positiveQty,
+  unit_price: z
+    .number()
+    .refine((v) => Number.isFinite(v), 'Enter a valid number')
+    .refine((v) => v >= 0, 'Cannot be negative')
+    .optional(),
+});
+
+export const purchaseOrderLineSchema = orderLineBaseSchema.extend({
+  raw_material_id: positiveId,
+});
+
+export const salesOrderLineSchema = orderLineBaseSchema.extend({
+  sku_id: positiveId,
+});
+
+function dedupeLinesRefine<T extends { raw_material_id?: number; sku_id?: number }>(idKey: 'raw_material_id' | 'sku_id') {
+  return (d: { lines: T[] }, ctx: z.RefinementCtx) => {
+    const ids = d.lines.map((l) => l[idKey]);
+    const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
+    if (dupes.length > 0) {
+      ctx.addIssue({ code: 'custom', message: 'Each item can only be listed once', path: ['lines'] });
+    }
+  };
+}
+
+export const createPurchaseOrderSchema = z
+  .object({
+    vendor_id: positiveId,
+    expected_date: optionalText(10),
+    notes: optionalText(1000),
+    lines: z.array(purchaseOrderLineSchema).min(1, 'Add at least one line'),
+  })
+  .superRefine(dedupeLinesRefine('raw_material_id'));
+
+/** PUT /purchase-orders/:id — draft-only; omitting `lines` leaves them untouched, so it's not required here. */
+export const updatePurchaseOrderSchema = z
+  .object({
+    expected_date: optionalText(10),
+    notes: optionalText(1000),
+    lines: z.array(purchaseOrderLineSchema).min(1, 'Add at least one line').optional(),
+  })
+  .superRefine((d, ctx) => {
+    if (d.lines) dedupeLinesRefine('raw_material_id')({ lines: d.lines }, ctx);
+  });
+
+export const createSalesOrderSchema = z
+  .object({
+    customer_id: positiveId,
+    expected_date: optionalText(10),
+    notes: optionalText(1000),
+    lines: z.array(salesOrderLineSchema).min(1, 'Add at least one line'),
+  })
+  .superRefine(dedupeLinesRefine('sku_id'));
+
+export const updateSalesOrderSchema = z
+  .object({
+    expected_date: optionalText(10),
+    notes: optionalText(1000),
+    lines: z.array(salesOrderLineSchema).min(1, 'Add at least one line').optional(),
+  })
+  .superRefine((d, ctx) => {
+    if (d.lines) dedupeLinesRefine('sku_id')({ lines: d.lines }, ctx);
+  });
+
+const fulfillLineRowSchema = z.object({
+  line_id: positiveId,
+  qty: positiveQty,
+});
+
+/** POST /purchase-orders/:id/receive and /sales-orders/:id/dispatch share this shape --
+ *  over-receipt is allowed server-side (see UI_GUIDE.md §7 Step 3), so no upper-bound check here;
+ *  insufficient-stock on dispatch is a server-side 409, not a client validation rule. */
+export const fulfillLinesSchema = z.object({
+  lines: z.array(fulfillLineRowSchema).min(1, 'Enter a quantity for at least one line'),
+});
+
 // --- Webhooks ---
 
 export const webhookSchema = z.object({

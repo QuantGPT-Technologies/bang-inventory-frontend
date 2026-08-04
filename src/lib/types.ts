@@ -557,6 +557,113 @@ export interface StockLevels {
   summary: { out_of_stock_count: number; low_stock_count: number };
 }
 
+// --- Purchase & Sales Orders (v1.7) ---
+
+export type PurchaseOrderStatus = 'draft' | 'sent' | 'partially_received' | 'received' | 'closed' | 'cancelled';
+
+export interface PurchaseOrderLine {
+  id: number;
+  purchase_order_id?: number;
+  raw_material_id: number;
+  material_name?: string;
+  ordered_qty: number;
+  received_qty: number;
+  unit_price?: number;
+}
+
+export interface PurchaseOrder {
+  id: number;
+  po_number: string;
+  vendor_id: number;
+  vendor_name?: string;
+  status: PurchaseOrderStatus;
+  expected_date?: string | null;
+  notes?: string | null;
+  created_by?: number;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface PurchaseOrderDetail extends PurchaseOrder {
+  lines: PurchaseOrderLine[];
+}
+
+export type SalesOrderStatus = 'draft' | 'confirmed' | 'partially_shipped' | 'shipped' | 'closed' | 'cancelled';
+
+export interface SalesOrderLine {
+  id: number;
+  sales_order_id?: number;
+  sku_id: number;
+  sku_name?: string;
+  ordered_qty: number;
+  shipped_qty: number;
+  unit_price?: number;
+}
+
+export interface SalesOrder {
+  id: number;
+  so_number: string;
+  customer_id: number;
+  customer_name?: string;
+  status: SalesOrderStatus;
+  expected_date?: string | null;
+  notes?: string | null;
+  created_by?: number;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface SalesOrderDetail extends SalesOrder {
+  lines: SalesOrderLine[];
+}
+
+// --- Stock Ledger (v1.7) ---
+
+export type StockLedgerItemType = 'sku' | 'raw_material' | 'consumable';
+export type StockLedgerReason =
+  | 'po_receipt'
+  | 'so_dispatch'
+  | 'production_consume'
+  | 'production_output'
+  | 'scrap'
+  | 'manual_adjust';
+export type StockLedgerRefType = 'purchase_order' | 'sales_order' | 'lot' | 'batch';
+
+export interface StockLedgerEntry {
+  id: number;
+  item_type: StockLedgerItemType;
+  item_id: number;
+  delta: number;
+  balance_after: number;
+  reason: StockLedgerReason;
+  ref_type?: StockLedgerRefType;
+  ref_id?: number;
+  note?: string;
+  created_by?: number;
+  created_at: string;
+}
+
+// --- Purchase/Sales orders reports (v1.7) ---
+
+export interface OrderSummaryRow {
+  id: number;
+  status: string;
+  expected_date: string | null;
+  is_overdue: boolean;
+}
+
+export interface PurchaseOrdersSummary {
+  open_count: number;
+  overdue_count: number;
+  orders: (OrderSummaryRow & { po_number: string; vendor_id: number; vendor_name: string })[];
+}
+
+export interface SalesOrdersSummary {
+  open_count: number;
+  overdue_count: number;
+  orders: (OrderSummaryRow & { so_number: string; customer_id: number; customer_name: string })[];
+}
+
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;

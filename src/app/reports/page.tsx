@@ -1,26 +1,28 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, StatCard } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
-import { Badge, stockStatusBadge } from '@/components/ui/Badge';
+import { Badge, stockStatusBadge, poStatusBadge, soStatusBadge } from '@/components/ui/Badge';
 import { ErrorState } from '@/components/ui/ErrorState';
 import Input from '@/components/ui/Input';
 import { toast } from '@/components/ui/Toast';
 import { reportsApi } from '@/lib/api';
-import { cn, formatQty, parseApiError, type ApiErrorInfo } from '@/lib/utils';
-import { StockLevelItem, StockLevels, YieldSummary, YieldSummaryRow } from '@/lib/types';
+import { cn, formatQty, formatDate, parseApiError, PO_STATUS_LABELS, SO_STATUS_LABELS, type ApiErrorInfo } from '@/lib/utils';
+import { StockLevelItem, StockLevels, YieldSummary, YieldSummaryRow, PurchaseOrdersSummary, SalesOrdersSummary } from '@/lib/types';
 import { BarChart, type BarChartRow } from '@/components/charts/BarChart';
 import { LineChart, type LineChartPoint } from '@/components/charts/LineChart';
 import { stepLabel } from './shared';
 import { Factory, Layers, TrendingUp, AlertTriangle, PackageX, ArrowRight } from 'lucide-react';
 
-type ReportsTab = 'yield' | 'stock' | 'trends';
+type ReportsTab = 'yield' | 'stock' | 'orders' | 'trends';
 const TABS: { key: ReportsTab; label: string }[] = [
   { key: 'yield', label: 'Yield' },
   { key: 'stock', label: 'Stock Levels' },
+  { key: 'orders', label: 'Orders' },
   { key: 'trends', label: 'Trends' },
 ];
 
@@ -50,6 +52,7 @@ const STOCK_STATUS_RANK: Record<string, number> = { out: 0, low: 1, ok: 2 };
  * linked at the bottom -- still available, not competing for space here.
  */
 export default function ReportsPage() {
+  const router = useRouter();
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [dateError, setDateError] = useState('');
@@ -67,6 +70,8 @@ export default function ReportsPage() {
   const [yieldData, setYieldData] = useState<YieldSummary>({ group_by: 'step', rows: [] });
   const [stock, setStock] = useState<StockLevels | null>(null);
   const [trendDays, setTrendDays] = useState<TrendDay[]>([]);
+  const [poSummary, setPoSummary] = useState<PurchaseOrdersSummary | null>(null);
+  const [soSummary, setSoSummary] = useState<SalesOrdersSummary | null>(null);
 
   const load = useCallback(async () => {
     if (dateFrom && dateTo && dateFrom > dateTo) {
@@ -78,18 +83,22 @@ export default function ReportsPage() {
     setError(null);
     const dateParams = dateFrom || dateTo ? { date_from: dateFrom || undefined, date_to: dateTo || undefined } : undefined;
     try {
-      const [prodRes, scrapRes, yieldRes, stockRes, trendsRes] = await Promise.all([
+      const [prodRes, scrapRes, yieldRes, stockRes, trendsRes, poRes, soRes] = await Promise.all([
         reportsApi.productionSummary(),
         reportsApi.scrapSummary(dateParams),
         reportsApi.yieldSummary({ ...dateParams, group_by: yieldGroupBy }),
         reportsApi.stockLevels(),
         reportsApi.trends(dateParams),
+        reportsApi.purchaseOrdersSummary(),
+        reportsApi.salesOrdersSummary(),
       ]);
       setProduction(prodRes.data?.data ?? {});
       setScrapKg((scrapRes.data?.data as { total_kg?: number } | undefined)?.total_kg ?? 0);
       setYieldData(yieldRes.data?.data ?? { group_by: yieldGroupBy, rows: [] });
       setStock(stockRes.data?.data ?? null);
       setTrendDays((trendsRes.data?.data as { days?: TrendDay[] } | undefined)?.days ?? []);
+      setPoSummary(poRes.data?.data ?? null);
+      setSoSummary(soRes.data?.data ?? null);
     } catch (err) {
       const info = parseApiError(err);
       setError(info);
@@ -304,6 +313,67 @@ export default function ReportsPage() {
               emptyMessage="No stock data available."
             />
           </Card>
+        )}
+
+        {tab === 'orders' && (
+          <div className="flex-1 min-h-0 overflow-hidden grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card
+              title="Purchase Orders"
+              subtitle={poSummary ? `${poSummary.open_count} open, ${poSummary.overdue_count} overdue · as of now` : 'as of now'}
+              noPadding
+              fill
+            >
+              <Table
+                columns={[
+                  { key: 'po_number', header: 'PO Number', primary: true, render: (o: PurchaseOrdersSummary['orders'][number]) => <span className="font-mono font-bold text-[var(--accent)]">{o.po_number}</span> },
+                  { key: 'vendor_name', header: 'Vendor', render: (o: PurchaseOrdersSummary['orders'][number]) => o.vendor_name },
+                  { key: 'status', header: 'Status', render: (o: PurchaseOrdersSummary['orders'][number]) => <Badge variant={poStatusBadge(o.status)}>{PO_STATUS_LABELS[o.status] || o.status}</Badge> },
+                  {
+                    key: 'expected_date',
+                    header: 'Expected',
+                    render: (o: PurchaseOrdersSummary['orders'][number]) => (
+                      <span className={o.is_overdue ? 'text-[var(--danger)] font-semibold' : ''}>
+                        {o.expected_date ? formatDate(o.expected_date) : '—'}{o.is_overdue ? ' · Overdue' : ''}
+                      </span>
+                    ),
+                  },
+                ]}
+                data={poSummary?.orders ?? []}
+                keyExtractor={(o) => o.id}
+                onRowClick={(o) => router.push(`/orders/purchase/${o.id}`)}
+                loading={loading}
+                emptyMessage="No open purchase orders."
+              />
+            </Card>
+            <Card
+              title="Sales Orders"
+              subtitle={soSummary ? `${soSummary.open_count} open, ${soSummary.overdue_count} overdue · as of now` : 'as of now'}
+              noPadding
+              fill
+            >
+              <Table
+                columns={[
+                  { key: 'so_number', header: 'SO Number', primary: true, render: (o: SalesOrdersSummary['orders'][number]) => <span className="font-mono font-bold text-[var(--accent)]">{o.so_number}</span> },
+                  { key: 'customer_name', header: 'Customer', render: (o: SalesOrdersSummary['orders'][number]) => o.customer_name },
+                  { key: 'status', header: 'Status', render: (o: SalesOrdersSummary['orders'][number]) => <Badge variant={soStatusBadge(o.status)}>{SO_STATUS_LABELS[o.status] || o.status}</Badge> },
+                  {
+                    key: 'expected_date',
+                    header: 'Expected',
+                    render: (o: SalesOrdersSummary['orders'][number]) => (
+                      <span className={o.is_overdue ? 'text-[var(--danger)] font-semibold' : ''}>
+                        {o.expected_date ? formatDate(o.expected_date) : '—'}{o.is_overdue ? ' · Overdue' : ''}
+                      </span>
+                    ),
+                  },
+                ]}
+                data={soSummary?.orders ?? []}
+                keyExtractor={(o) => o.id}
+                onRowClick={(o) => router.push(`/orders/sales/${o.id}`)}
+                loading={loading}
+                emptyMessage="No open sales orders."
+              />
+            </Card>
+          </div>
         )}
 
         {tab === 'trends' && (

@@ -66,6 +66,30 @@ export function lotStatusBadge(status: string) {
   return map[status] || 'default';
 }
 
+export function poStatusBadge(status: string) {
+  const map: Record<string, BadgeVariant> = {
+    draft: 'muted',
+    sent: 'info',
+    partially_received: 'warning',
+    received: 'success',
+    closed: 'default',
+    cancelled: 'danger',
+  };
+  return map[status] || 'default';
+}
+
+export function soStatusBadge(status: string) {
+  const map: Record<string, BadgeVariant> = {
+    draft: 'muted',
+    confirmed: 'info',
+    partially_shipped: 'warning',
+    shipped: 'success',
+    closed: 'default',
+    cancelled: 'danger',
+  };
+  return map[status] || 'default';
+}
+
 // 'low' maps to 'warning' (amber) deliberately -- it's a genuine "needs action" state (reorder
 // this soon), the one thing amber is reserved for app-wide.
 export function stockStatusBadge(status: string) {

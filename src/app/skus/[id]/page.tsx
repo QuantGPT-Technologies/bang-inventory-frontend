@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { StockLedgerCard } from '@/components/ui/StockLedgerCard';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
@@ -170,6 +171,10 @@ export default function SKUDetailPage() {
             </div>
           )}
         </Card>
+
+        <div className="lg:col-span-3">
+          <StockLedgerCard itemType="sku" itemId={sku.id} unit={sku.unit} title="Audit Trail" />
+        </div>
       </div>
     </AppShell>
   );

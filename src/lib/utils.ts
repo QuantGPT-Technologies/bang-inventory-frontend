@@ -155,6 +155,33 @@ export function verbForNodeType(nodeType: WorkflowNodeType, status: 'pending' | 
   }
 }
 
+export const PO_STATUS_LABELS: Record<string, string> = {
+  draft: 'Draft',
+  sent: 'Sent',
+  partially_received: 'Partially Received',
+  received: 'Received',
+  closed: 'Closed',
+  cancelled: 'Cancelled',
+};
+
+export const SO_STATUS_LABELS: Record<string, string> = {
+  draft: 'Draft',
+  confirmed: 'Confirmed',
+  partially_shipped: 'Partially Shipped',
+  shipped: 'Shipped',
+  closed: 'Closed',
+  cancelled: 'Cancelled',
+};
+
+export const STOCK_LEDGER_REASON_LABELS: Record<string, string> = {
+  po_receipt: 'Purchase Order Receipt',
+  so_dispatch: 'Sales Order Dispatch',
+  production_consume: 'Production Consumption',
+  production_output: 'Production Output',
+  scrap: 'Scrap',
+  manual_adjust: 'Manual Adjustment',
+};
+
 export const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
   manager: 'Manager',

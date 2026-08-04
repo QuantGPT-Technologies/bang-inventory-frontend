@@ -7,6 +7,7 @@ import { Table, Pagination, TABLE_ROW_HEIGHT_PX, TABLE_CARD_ROW_HEIGHT_PX } from
 import { Badge, stockStatusBadge } from '@/components/ui/Badge';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Modal } from '@/components/ui/Modal';
+import { StockLedgerModal } from '@/components/ui/StockLedgerModal';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
@@ -21,7 +22,7 @@ import { useAsyncQuery } from '@/lib/useAsync';
 import { useUrlState } from '@/lib/useUrlState';
 import { useFitRowCount } from '@/lib/useFitRowCount';
 import { useMediaQuery } from '@/lib/useMediaQuery';
-import { Plus, TrendingUp, TrendingDown, Pencil, Search } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, Pencil, History, Search } from 'lucide-react';
 
 const INITIAL_PER_PAGE = 20;
 const EMPTY: PaginatedResponse<Consumable> = { items: [], total: 0, page: 1, per_page: INITIAL_PER_PAGE };
@@ -46,6 +47,7 @@ function ConsumablesPageInner() {
   const [debouncedSearch, setDebouncedSearch] = useState(search);
   const [showCreate, setShowCreate] = useState(false);
   const [showAdjust, setShowAdjust] = useState<{ id: number; name: string; stock: number; unit: string } | null>(null);
+  const [showLedger, setShowLedger] = useState<{ id: number; name: string; unit: string } | null>(null);
   // Keyed by consumable id -- fetched once (stockLevels() returns every consumable regardless of
   // this page's pagination), not refetched per page. Left empty (no badges shown) if the call
   // fails, per the "fail gracefully" rule -- this is a supplementary signal, not core data.
@@ -122,23 +124,29 @@ function ConsumablesPageInner() {
       },
     },
     { key: 'created_at', header: 'Added', hideInCard: true, render: (c: Consumable) => formatDate(c.created_at) },
-    ...(canStock
-      ? [
-          {
-            key: 'actions',
-            header: '',
-            isActions: true,
-            render: (c: Consumable) => (
-              <button
-                onClick={(e) => { e.stopPropagation(); setShowAdjust({ id: c.id, name: c.name, stock: c.current_stock, unit: c.unit }); }}
-                className="flex items-center gap-1.5 min-h-11 px-3 rounded-lg text-sm font-bold text-[var(--ink-muted)] hover:text-[var(--accent)] hover:bg-[var(--paper-sunken)] transition-colors"
-              >
-                <Pencil size={18} /> Adjust Stock
-              </button>
-            ),
-          },
-        ]
-      : []),
+    {
+      key: 'actions',
+      header: '',
+      isActions: true,
+      render: (c: Consumable) => (
+        <div className="flex items-center gap-2 justify-end">
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowLedger({ id: c.id, name: c.name, unit: c.unit }); }}
+            className="flex items-center gap-1.5 min-h-11 px-3 rounded-lg text-sm font-bold text-[var(--ink-muted)] hover:text-[var(--info)] hover:bg-[var(--info-tint)] transition-colors"
+          >
+            <History size={18} /> Audit Trail
+          </button>
+          {canStock && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowAdjust({ id: c.id, name: c.name, stock: c.current_stock, unit: c.unit }); }}
+              className="flex items-center gap-1.5 min-h-11 px-3 rounded-lg text-sm font-bold text-[var(--ink-muted)] hover:text-[var(--accent)] hover:bg-[var(--paper-sunken)] transition-colors"
+            >
+              <Pencil size={18} /> Adjust Stock
+            </button>
+          )}
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -196,6 +204,15 @@ function ConsumablesPageInner() {
           {...showAdjust}
           onClose={() => setShowAdjust(null)}
           onDone={() => { setShowAdjust(null); reload(); }}
+        />
+      )}
+      {showLedger && (
+        <StockLedgerModal
+          itemType="consumable"
+          itemId={showLedger.id}
+          unit={showLedger.unit}
+          name={showLedger.name}
+          onClose={() => setShowLedger(null)}
         />
       )}
     </AppShell>
